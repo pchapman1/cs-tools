@@ -1,0 +1,142 @@
+//	lightInstancer v1.0.1
+//	Script written by Peter Chapman.
+//	Email: peter@chapmanstudios.co.uk
+//
+//	You are welcome to use and distribute this script, however,
+//	if you do so, send me a quick e-mail with your name and what
+//	you used it for.
+//
+//	Also feel free to give me feedback / request changes.
+//
+//	If you use the script for a commercial project,
+//	please to contribute via PayPal using the email address
+//	above!
+
+source "cs/csProgBar.mel";
+
+//Connect Lights
+global proc connectLights(){
+
+    string $sel[] = `ls -sl -dag -type "light"`;
+	string $target = $sel[0];
+	stringArrayRemoveAtIndex 0 $sel;
+	
+	if ( !`objExists ( $target + ".decay" )` ){
+		addAttr -k true -dv 0 -min 0 -max 3 -at double -ln decay $target;
+		setAttr ($target + ".decay") (`getAttr ($target + ".decayRate")`);
+		connectAttr ( $target + ".decay") ( $target + ".decayRate");
+    }
+	
+	int $i;
+	
+    for ($each in $sel){
+	
+		++$i;
+		int $interrupt = progWindow($i, size($sel));
+		if ($interrupt == 1){
+			break;
+		}
+					
+		connectAttr ($target + ".decay") ($each + ".decayRate");
+	    connectAttr ($target + ".intensity") ($each + ".intensity");
+	    connectAttr ($target + ".color") ($each + ".color");
+		connectAttr ($target + ".shadowColor") ($each + ".shadowColor");
+	    connectAttr ($target + ".useDepthMapShadows") ($each + ".useDepthMapShadows");
+	    connectAttr ($target + ".dmapResolution") ($each + ".dmapResolution");
+	    connectAttr ($target + ".dmapFilterSize") ($each + ".dmapFilterSize");
+		connectAttr ($target + ".dmapBias") ($each + ".dmapBias");
+	    connectAttr ($target + ".useRayTraceShadows") ($each + ".useRayTraceShadows");
+	    connectAttr ($target + ".lightRadius") ($each + ".lightRadius");
+	    connectAttr ($target + ".shadowRays") ($each + ".shadowRays");
+		connectAttr ($target + ".rayDepthLimit") ($each + ".rayDepthLimit");
+		connectAttr ($target + ".emitDiffuse") ($each + ".emitDiffuse");
+		connectAttr ($target + ".emitSpecular") ($each + ".emitSpecular");
+    }
+	
+	string $parent[] = `listRelatives -p $target`;
+	rename $parent[0] ($parent[0] + "_MASTER");
+	print "Complete";
+}
+//Duplicate Instance a light
+global proc duplicateLight(){
+	string $sel[] = `ls -dag -typ "light" -sl`;
+	string $target = $sel[0];
+	
+	if (size($sel) != 1){
+		print "No objects, or too many objects selected";
+    }
+	
+	else{
+	
+		if ( !`objExists ( $target + ".decay" )` ){
+			addAttr -k true -dv 0 -min 0 -max 3 -at double -ln decay $target;
+			setAttr ($target + ".decay") (`getAttr ($target + ".decayRate")`);
+			connectAttr ( $target + ".decay") ( $target + ".decayRate");
+		}
+		
+		string $sel[] = `duplicate $target`;
+		string $new = $sel[0];
+		
+		if ( !`objExists ( $target + ".decay" )` ){
+			connectAttr ($target + ".decay") ($new + ".decay");
+        }
+		if ( !`objExists ( $target + ".decay" )` ){
+			connectAttr ($target + ".decayRate") ($new + ".decayRate");
+        }
+	    connectAttr ($target + ".intensity") ($new + ".intensity");
+	    connectAttr ($target + ".color") ($new + ".color");
+		connectAttr ($target + ".shadowColor") ($new + ".shadowColor");
+	    connectAttr ($target + ".useDepthMapShadows") ($new + ".useDepthMapShadows");
+	    connectAttr ($target + ".dmapResolution") ($new + ".dmapResolution");
+	    connectAttr ($target + ".dmapFilterSize") ($new + ".dmapFilterSize");
+		connectAttr ($target + ".dmapBias") ($new + ".dmapBias");
+	    connectAttr ($target + ".useRayTraceShadows") ($new + ".useRayTraceShadows");
+	    connectAttr ($target + ".lightRadius") ($new + ".lightRadius");
+	    connectAttr ($target + ".shadowRays") ($new + ".shadowRays");
+		connectAttr ($target + ".rayDepthLimit") ($new + ".rayDepthLimit");
+		connectAttr ($target + ".emitDiffuse") ($new + ".emitDiffuse");
+		connectAttr ($target + ".emitSpecular") ($new + ".emitSpecular");
+		
+		select -r $new;
+		print "complete";
+    }
+}
+//lightInstancer Menu
+global proc lightInstancerMenu(){
+
+	source generateChannelMenu.mel;
+  
+	if(`window -q -ex lightInstancer_menu`){
+  		deleteUI lightInstancer_menu;
+	}
+	
+    window
+		-rtf 1
+		-mnb 0
+		-mxb 0
+		-s 0
+		-title "Light Instancer"
+		lightInstancer_menu;
+	
+    columnLayout ColumnLayout;
+	
+	button
+		-bgc 1 1 0
+		-h 30
+		-w 190
+		-l "Duplicate Light as Instance"
+		-ann "Select the light you wish to duplicate"
+		-c "duplicateLight()";
+	button
+		-bgc 0 1 0
+		-h 30
+		-w 190
+		-l "Connect Lights to Master"
+		-ann "Select all the lights you wish to be connected. The first light in the selection will become the master."
+		-c "connectLights()";
+		
+	showWindow lightInstancer_menu;
+	window -e -w 197 -h 100 lightInstancer_menu;
+}
+
+lightInstancerMenu();

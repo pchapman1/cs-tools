@@ -1,0 +1,64 @@
+/*
+Make Parent Nodes v1.0.3
+Script written by Peter Chapman.
+Email: pchapman86@gmail.com
+
+You are welcome to use and distribute this script, however,
+if you do so, send me a quick e-mail with your name and what
+you used it for.
+
+Also feel free to give me feedback / request changes.
+
+If you end up using the script for a commercial project,
+please contribute via PayPal using the email address
+above!
+*/
+
+global proc makeParentNodes(string $name, int $pivot){
+	string $sel[] = `ls -sl`;
+	string $nameCheck = $name;
+	
+	for ($each in $sel){
+		
+		if ($nameCheck == ""){
+			$name = ($each + "Grp");
+		}
+		
+		string $node = `group -n ($name + "#") $each`;
+		
+		if ($pivot){
+			float $pos[] = `xform -q -ws -t ($each + ".rotatePivot")`;
+			xform -scalePivot $pos[0] $pos[1] $pos[2] $node;
+			xform -rotatePivot $pos[0] $pos[1] $pos[2] $node;
+		}
+	}
+}
+
+global proc makeParentNodesMenu(){
+
+	source generateChannelMenu.mel;
+  
+	if(`window -q -ex makeParentNodes_menu`){
+  		deleteUI makeParentNodes_menu;
+	}
+	
+    window
+		-rtf 1
+		-mnb 0
+		-mxb 0
+		-s 0
+		-title "Make Parent Nodes"
+		makeParentNodes_menu;
+	
+    columnLayout ColumnLayout;
+		text -l "Node Name";
+		textField -w 190 tf_name;
+		button -bgc 1 1 0 -h 30 -w 190 -l "Make Parent Nodes" -ann "Creates a parent node to each selected object" -c "makeParentNodes(`textField -q -tx tf_name`, `checkBox -q -v cb_pivot`)";
+		checkBox -l "Match Object's Pivot" -v 1 cb_pivot;
+	setParent ..;
+	
+	showWindow makeParentNodes_menu;
+	window -e -w 197 -h 100 makeParentNodes_menu;
+}
+
+makeParentNodesMenu();

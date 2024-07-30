@@ -1,0 +1,86 @@
+/*
+Auto Rig v 1.01
+Script written by Peter Chapman.
+Email: peter@chapmanstudios.co.uk
+
+You are welcome to use and distribute this script, however,
+if you do so, send me a quick e-mail with your name and what
+you used it for.
+
+Also feel free to give me feedback / request changes.
+
+If you end up using the script for a commercial project,
+please contribute via PayPal using the email address
+above!
+*/
+
+global proc buildHand(string $control, string $thumb[], string $pointer[], string $middle[], string $ring[], string $pinky[]){
+
+}
+
+global proc string setSelection(string $txField, int $selLimit){
+	string $sel[] = `ls -sl`;
+	
+	text -e -l $sel[0] $txField;
+	return $sel;
+}
+
+global proc csAutoRigMenu(){
+
+	if ( `window -exists csAutoRigMenu` ) {
+		 deleteUI csAutoRigMenu;
+	}
+		
+	window -s 0 -t "Auto Rig" csAutoRigMenu;
+		
+	columnLayout;
+		button -w 300 -l "Help / About";
+		frameLayout -w 300 -l "Template";
+			columnLayout;
+				checkBox -l "";
+				button -w 296 -l "Build template";
+			setParent ..;
+		setParent ..;
+		frameLayout -w 300 -l "HandRig";
+			columnLayout;
+				rowLayout -nc 3 -cw3 50 150 100;
+					text -l "Control:";
+					text -l "" tx_control;
+					button -bgc 1 0.5 0.5 -w 90 -l "Set Control" -c "string $control[] = `setSelection(\"tx_control\", 1)`" btn_control;
+				setParent ..;
+				rowLayout -nc 3 -cw3 50 150 100;
+					text -l "Thumb:";
+					text -l "" tx_thumb;
+					button -bgc 1 0.5 0.5 -w 90 -l "Set Joints" -c "string $thumb[] = `setSelection(\"tx_thumb\", 0)`" btn_thumb;
+				setParent ..;
+				rowLayout -nc 3 -cw3 50 150 100;
+					text -l "Pointer:";
+					text -l "" tx_pointer;
+					button -bgc 1 0.5 0.5 -w 90 -l "Set Joints" -c "string $pointer[] = `setSelection(\"tx_pointer\", 0)`" btn_pointer;
+				setParent ..;
+				rowLayout -nc 3 -cw3 50 150 100;
+					text -l "Middle:";
+					text -l "" tx_middle;
+					button -bgc 1 0.5 0.5 -w 90 -l "Set Joints" "string $middle[] = `setSelection(\"tx_middle\", 0)`" btn_middle;
+				setParent ..;
+				rowLayout -nc 3 -cw3 50 150 100;
+					text -l "Ring:";
+					text -l "" tx_ring;
+					button -bgc 1 0.5 0.5 -w 90 -l "Set Joints" "string $ring[] = `setSelection(\"tx_ring\", 0)`" btn_ring;
+				setParent ..;
+				rowLayout -nc 3 -cw3 50 150 100;
+					text -l "Pinky:";
+					text -l "" tx_pinky;
+					button -bgc 1 0.5 0.5 -w 90 -l "Set Joints" "string $pinky[] = `setSelection(\"tx_pinky\", 0)`" btn_pinky;
+				setParent ..;
+				button -bgc 1 1 0 -w 300 -l "Build" -c "buildHand($control, $thumb, $pointer, $middle, $ring, $pinky)" btn_buildHand;
+			setParent ..;
+		setParent ..;
+	setParent ..;
+
+	window -e -w 300 -h 50 csAutoRigMenu;
+		 
+	showWindow csAutoRigMenu;
+}
+
+csAutoRigMenu();

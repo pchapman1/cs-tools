@@ -1,0 +1,21 @@
+/*
+CS Suite Launcher v 1.01
+Script written by Peter Chapman.
+Email: Peter@chapmanstudios.co.uk
+
+You are welcome to use and distribute this script, however,
+if you do so, send me a quick e-mail with your name and what
+you used it for.
+
+Also feel free to give me feedback / request changes.
+
+If you end up using the script for a commercial project,
+please contribute via PayPal using the email address
+above!
+*/
+
+if(`menu -q -ex cs_menuBar`){
+	if(`window -q -ex cs_menu`) source "cs/MEL.mel";
+	else source "cs/csMenu.mel";
+}
+else source "cs/csMenuBar.mel";

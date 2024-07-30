@@ -1,0 +1,410 @@
+//  Simple Squash and Stretch v 1.01
+//	Script written by Peter Chapman.
+//	Email: peter@chapmanstudios.co.uk
+//
+//	You are welcome to use and distribute this script, however,
+//	if you do so, send me a quick e-mail with your name and what
+//	you used it for.
+//
+//	Also feel free to give me feedback / request changes.
+//
+//	If you use the script for a commercial project,
+//	please contribute via PayPal using the email address
+//	above!
+
+global proc flexiPlane(string $cNode, int $intAxis){
+	
+	//Get Selection
+	string $sel[] = `ls -sl`;
+	
+	//Check selection
+	if (size($sel) != 2){
+		print "Please select a start and end object";
+	}
+	
+	string $parent = `listRelatives -p $sel[0]`;
+	string $test;
+	string $start = $sel[0];
+	string $end = $sel[1];
+	
+	// Define Axis
+	string $axis = "";
+	if ($intAxis == 1) $axis = ".sx";
+	else if ($intAxis == 2) $axis = ".sy";
+	else if ($intAxis == 3) $axis = ".sz";
+	
+	
+	
+}
+
+global proc squashStretch(int $intPoints, int $parentCheck, int $twist, string $cNode, int $intAxis, int $expNode, int $ownCurve){
+
+	string $joints[] = `ls -sl -type "joint"`;
+	
+	string $axis = "";
+	if ($intAxis == 1) $axis = ".sx";
+	else if ($intAxis == 2) $axis = ".sy";
+	else if ($intAxis == 3) $axis = ".sz";
+	
+	
+	//Check selection
+	if (size($joints) < 3){
+		print "Not enough joints selected, must select ALL joints";
+	}
+	
+	else{
+		select -r $joints[0] $joints[size($joints)-1];
+		string $ikHandle[] = `ikHandle -sol ikSplineSolver`;
+		string $spCurve = `rename $ikHandle[2] "sqStSplineCurve"`;
+
+		string $myArc = `arclen -ch 1 $spCurve`;
+		string $cInfo = `rename $myArc "cInfo"`;
+		string $div = `createNode -n "div" multiplyDivide`;
+
+		setAttr ($div + ".operation") 2;
+		connectAttr ($cInfo + ".arcLength") ($div + ".input1X");
+		float $arcLen = `getAttr ($cInfo + ".arcLength")`;
+		setAttr ($div + ".input2X") $arcLen;
+		select $div;
+		addAttr -ln "arc_len" -k 0 -at "float" -dv 0 $div;
+		setAttr -e -cb 1 ($div +".arc_len");
+		addAttr -ln "arc_scl" -k 1 -at "float" -dv 0 $div;
+		connectAttr ($div + ".outputX") ($div + ".arc_scl");
+		
+		if ($expNode == 0){
+			//List Joints
+			string $jointList;
+			for ($each in $joints){
+				$jointList = $jointList + $each + ".sx = ";
+			}
+			//Expression for vScale
+			if (`objExists $cNode`) $cNode = (" / " + $cNode + $axis);
+			expression -n "squashStretch" -s ($jointList + $div + ".arc_scl;" + $cNode);
+		}
+		
+		else if ($expNode == 1){
+			//Nodes for vScale
+			string $sqStrScale = `createNode -n sqSt_scale multiplyDivide`;
+			setAttr ($sqStrScale + ".operation") 2;
+			connectAttr ($div + ".arc_scl") ($sqStrScale + ".input1X");
+			if (`objExists $cNode`) connectAttr ($cNode + $axis) ($sqStrScale + ".input2X");
+			for ($each in $joints) connectAttr ($sqStrScale + ".outputX") ($each + $axis);
+		}
+		
+		//Rebuild curve to n Points
+		
+		string $rebCurve[] = `rebuildCurve -ch 0 -rpo 1 -end 1 -kr 0 -kt 0 -s ($intPoints - 4) -d 3 $spCurve`;
+		
+		string $spCurve = $rebCurve[0];
+		
+		//Create Clusters for each vertice
+		
+		select -r $spCurve;
+		string $sel[] = `ls -sl`;
+		string $nameShape[]= `ls -dag -lf -ap -sl`;
+		int $span = `getAttr ($nameShape[0] + ".spans")`;
+		string $clusters[];
+			
+		for ($a=0;$a<=($span+2);$a++){
+			select -r ($sel[0] +".cv[" +$a +"]") ;
+			string $new[] = `newCluster "-relative -envelope 1"`;
+			$clusters[size($clusters)] = ($new[0] + "Handle");
+		}
+		
+		string $controls[];
+		int $i = 0;
+		
+		//Create and link Curves
+		
+		for ($each in $clusters){
+			string $t[] = `circle -ch 0 -s 8 -r ($arcLen / 10) -n "sqStrCtrl0"`;
+			$controls[$i] = $t[0];
+			float $trA[] = `xform -q -ws -t $each`;
+			float $rpA[] = `xform -q -rp $each`;
+			float $rpB[] = `xform -q -rp $controls[$i]`;
+			xform -ws -t ($trA[0] + $rpA[0] - $rpB[0]) ($trA[1] + $rpA[1] - $rpB[1]) ($trA[2] + $rpA[2] - $rpB[2]) $controls[$i];
+			parentConstraint -mo -weight 1 $controls[$i] $each;
+			$i++;
+		}
+		
+		if ($twist){
+			addAttr -ln "twist"  -at double $controls[size($controls)-1];
+			setAttr -e-keyable true ($controls[size($controls)-1] + ".twist");
+			addAttr -ln "autoTwistZ"  -at double  -min 0 -max 1 $controls[size($controls)-1];
+			setAttr -e-keyable true ($controls[size($controls)-1] + ".autoTwistZ");
+			addAttr -ln "autoTwistY"  -at double  -min 0 -max 1 $controls[size($controls)-1];
+			setAttr -e-keyable true ($controls[size($controls)-1] + ".autoTwistY");
+			string $mdTwistZ = `createNode -n "md_twistAutoZ" multiplyDivide`;
+			string $mdTwistY = `createNode -n "md_twistAutoY" multiplyDivide`;
+			string $pmTwist = `createNode -n "pm_twist" plusMinusAverage`;
+			connectAttr ($controls[size($controls)-1] + ".twist") ($pmTwist + ".input1D[0]");
+			connectAttr ($controls[size($controls)-1] + ".rz") ($mdTwistZ + ".input1X");
+			connectAttr ($controls[size($controls)-1] + ".autoTwistZ") ($mdTwistZ + ".input2X");
+			connectAttr ($controls[size($controls)-1] + ".ry") ($mdTwistY + ".input1X");
+			connectAttr ($controls[size($controls)-1] + ".autoTwistY") ($mdTwistY + ".input2X");
+			connectAttr ($mdTwistY + ".outputX") ($pmTwist +".input1D[1]");
+			connectAttr ($mdTwistZ + ".outputX") ($pmTwist +".input1D[2]");
+			connectAttr ($pmTwist +".output1D") ($ikHandle[0] +".twist");
+		}
+		
+		if ($parentCheck == 1){
+			print "ParentCheckOn";
+			string $pre = $controls[0];
+			for ($each in $controls){
+				if ($pre != $each){
+					parent $each $pre;
+					$pre = $each;
+				}
+			}
+		}
+		
+		//string $sqStGrp = `group -n "squashStretch" $ctrlGrp $curveGrp $jointsGrp $clusterGrp $othersGrp`;
+	}
+}
+
+global proc dupLinkJtChain(string $cNode, string $attrName, int $swapAdd, int $incScale){
+
+	string $sel[] = `ls -sl -et "joint"`;
+	if (size($sel) == 1) $sel = `ls -sl -et "joint" -dag`;
+	
+	string $buffer[];
+	tokenize $sel[0] "_" $buffer;
+	string $name = $buffer[(size($buffer))-1];
+	
+	string $dupA[] = `duplicate -rc $sel[0]`;
+	string $dupB[] = `duplicate -rc $sel[0]`;
+	
+	if ($cNode != ""){
+		if (`objExists ($cNode + "." + $attrName)`) print "Using existing attribute";
+		else {
+			addAttr -ln $attrName  -at double  -min 0 -max 1 $cNode;
+			setAttr -e-keyable true ($cNode + "." + $attrName);
+		}
+	}
+	
+	
+	for ($i = 0; $i < size($sel); $i++){
+		$dupA[$i] = `rename $dupA[$i] ("A_" + $sel[$i])`;
+		$dupB[$i] = `rename $dupB[$i] ("B_" + $sel[$i])`;
+		
+		if ($swapAdd == 1){
+			string $pConstraint[] = `parentConstraint -n ("pCon_" + $name + $i) -w 1 $dupA[$i] $dupB[$i] $sel[$i]`;
+			string $reverseNode = `createNode -n ("revP_" + $name + $i) reverse`;
+			connectAttr ($pConstraint[0] + "." + $dupA[$i] + "W0") ($reverseNode + ".inputX") ;
+			connectAttr ($reverseNode + ".outputX") ($pConstraint[0] + "." + $dupB[$i] + "W1");
+			if (`objExists $cNode`) connectAttr ($cNode + "." + $attrName) ($pConstraint[0] + "." + $dupA[$i] + "W0");
+			if ($incScale == 2){
+				string $sConstraint[] = `scaleConstraint -n ("sCon_" + $name + $i) -w 1 $dupA[$i] $dupB[$i] $sel[$i]`;
+				string $reverseNode = `createNode -n ("revS_" + $name + $i) reverse`;
+				connectAttr ($sConstraint[0] + "." + $dupA[$i] + "W0") ($reverseNode + ".inputX") ;
+				connectAttr ($reverseNode + ".outputX") ($sConstraint[0] + "." + $dupB[$i] + "W1");
+				if (`objExists $cNode`) connectAttr ($cNode + "." + $attrName) ($sConstraint[0] + "." + $dupA[$i] + "W0");
+			}
+			if ($incScale){
+				string $sSwapCombine = `createNode -n ("pm_sSwapCombine_" + $name + $i) plusMinusAverage`;
+				string $sSwapMdNodeA = `createNode -n ("md_sSwapMd_" + $name + $i) multiplyDivide`;
+				string $sSwapMdNodeB = `createNode -n ("md_sSwapB_" + $name + $i) multiplyDivide`;
+				string $sSwapRevNode = `createNode -n ("rev_sSwap_" + $name + $i) reverse`;
+				connectAttr ($dupA[$i] + ".s") ($sSwapMdNodeA + ".input1");
+				connectAttr ($dupB[$i] + ".s") ($sSwapMdNodeB + ".input1");
+				connectAttr ($sSwapMdNodeA + ".output") ($sSwapCombine + ".input3D[0]");
+				connectAttr ($sSwapMdNodeB + ".output") ($sSwapCombine + ".input3D[1]");
+				connectAttr ($sSwapRevNode + ".output") ($sSwapMdNodeB + ".input2");
+				connectAttr ($sSwapCombine + ".output3D") ($sel[$i] + ".s");
+				if (`objExists $cNode`) connectAttr ($cNode + "." + $attrName) ($sSwapMdNodeA + ".input2.input2X");
+				if (`objExists $cNode`) connectAttr ($cNode + "." + $attrName) ($sSwapMdNodeA + ".input2.input2Y");
+				if (`objExists $cNode`) connectAttr ($cNode + "." + $attrName) ($sSwapMdNodeA + ".input2.input2Z");
+				if (`objExists $cNode`) connectAttr ($cNode + "." + $attrName) ($sSwapRevNode + ".inputX");
+				if (`objExists $cNode`) connectAttr ($cNode + "." + $attrName) ($sSwapRevNode + ".inputY");
+				if (`objExists $cNode`) connectAttr ($cNode + "." + $attrName) ($sSwapRevNode + ".inputZ");
+			}
+		}
+		
+		else if ($swapAdd == 2){
+			string $addNode = `createNode -n ("add_" + $name + $i) plusMinusAverage`;
+			string $mdNode = `createNode -n ("md_" + $name + $i) multiplyDivide`;
+			connectAttr ($dupA[$i] + ".r") ($addNode + ".input3D[0]");
+			connectAttr ($dupB[$i] + ".r") ($mdNode + ".input1");
+			connectAttr ($mdNode + ".output") ($addNode + ".input3D[1]");
+			connectAttr ($addNode + ".output3D") ($sel[$i] + ".r");
+			if (`objExists $cNode`) connectAttr ($cNode + "." + $attrName) ($mdNode + ".input2.input2X");
+			if (`objExists $cNode`) connectAttr ($cNode + "." + $attrName) ($mdNode + ".input2.input2Y");
+			if (`objExists $cNode`) connectAttr ($cNode + "." + $attrName) ($mdNode + ".input2.input2Z");
+			if ($incScale){
+				string $scaleCompNode = `createNode -n ("sComp_" + $name + $i) plusMinusAverage`;
+				string $sAddNode = `createNode -n ("sAdd_" + $name + $i) plusMinusAverage`;
+				string $sMdNode = `createNode -n ("sMd_" + $name + $i) multiplyDivide`;
+				connectAttr ($dupA[$i] + ".s") ($sAddNode + ".input3D[0]");
+				connectAttr ($dupB[$i] + ".s") ($scaleCompNode + ".input3D[0]");
+					setAttr ($scaleCompNode + ".input3D[2].input3Dx") -1;
+					setAttr ($scaleCompNode + ".input3D[2].input3Dy") -1;
+					setAttr ($scaleCompNode + ".input3D[2].input3Dz") -1;
+				connectAttr ($scaleCompNode + ".output3D") ($sMdNode + ".input1");
+				connectAttr ($sMdNode + ".output") ($sAddNode + ".input3D[1]");
+				connectAttr ($sAddNode + ".output3D") ($sel[$i] + ".s");
+				if (`objExists $cNode`) connectAttr ($cNode + "." + $attrName) ($sMdNode + ".input2.input2X");
+				if (`objExists $cNode`) connectAttr ($cNode + "." + $attrName) ($sMdNode + ".input2.input2Y");
+				if (`objExists $cNode`) connectAttr ($cNode + "." + $attrName) ($sMdNode + ".input2.input2Z");
+			}
+		}
+		else if ($swapAdd == 3){
+			string $pConstraint[] = `parentConstraint -n ("pCon_" + $name + $i) -w 1 $dupA[$i] $dupB[$i] $sel[$i]`;
+			string $reverseNode = `createNode -n ("revP_" + $name + $i) reverse`;
+			string $addNode = `createNode -n ("add_" + $name + $i) plusMinusAverage`;
+			string $mdNode = `createNode -n ("md_" + $name + $i) multiplyDivide`;
+			
+			confirmDialog
+				-icn "warning"
+				-t "WARNING"
+				-m "This Script is not complete"
+				-b "OK";
+			
+		}
+	}
+}
+
+global proc setCNode(){
+	string $sel[] = `ls -sl`;
+	text -e -l $sel[0] text_cNode;
+	button -e -bgc 0.5 1 0.5 btn_setCtrl;
+	textField -e -en 1 tx_attrName;
+}
+
+global proc orientJnts(string $sel[]){
+	for ($i = 0; $i > (size($sel)-1); $i++){
+		string $aim = `aimConstraint $sel[$i] $sel[$i+1]`;
+		delete $aim;
+		float $rotX = `getAttr (($sel[0]) + ".rx")`;
+		float $rotY = `getAttr (($sel[0]) + ".ry")`;
+		float $rotZ = `getAttr (($sel[0]) + ".rz")`;
+		setAttr (($sel[$i]) + ".jointOrient") $rotX $rotY $rotZ;
+		setAttr (($sel[$i]) + ".r") 0 0 0;
+	}
+}
+
+global proc quickSwitch(string $cNode, string $attrName, int $swapAdd, int $incScale){
+
+	string $sel[] = `ls -sl`;
+	
+	string $buffer[];
+	tokenize $sel[0] "_" $buffer;
+	string $name = $buffer[(size($buffer))-1];
+	
+	if (size($sel)!=3) error "3 Items must be selected";
+	else {
+		if ($cNode != ""){
+			if (`objExists ($cNode + "." + $attrName)`) print "Using existing attribute";
+			else {
+				addAttr -ln $attrName  -at double  -min 0 -max 1 $cNode;
+				setAttr -e-keyable true ($cNode + "." + $attrName);
+			}
+		}
+		
+		if ($swapAdd == 1){
+			string $pConst[] = `parentConstraint -mo -weight 1 $sel`;
+			string $reverse = `createNode -n ("rev_" + "sel[2]") reverse`;
+			connectAttr ($pConst[0] + "." + $sel[0] + "W0") ($reverse + ".input.inputX");
+			connectAttr ($reverse + ".output.outputX") ($pConst[0] + "." + $sel[1] + "W1");
+			if (`objExists ($cNode + "." + $attrName)`) connectAttr ($cNode + "." + $attrName) ($pConst[0] + "." + $sel[0] + "W0");
+		}
+		
+		else if ($swapAdd == 2){
+			string $addNodeR = `createNode -n ("addR_" + $name) plusMinusAverage`;
+			string $mdNodeR = `createNode -n ("mdR_" + $name) multiplyDivide`;
+			connectAttr ($sel[0] + ".r") ($addNodeR + ".input3D[0]");
+			connectAttr ($sel[1] + ".r") ($mdNodeR + ".input1");
+			connectAttr ($mdNodeR + ".output") ($addNodeR + ".input3D[1]");
+			connectAttr ($addNodeR + ".output3D") ($sel[2] + ".r");
+			if (`objExists $cNode`) connectAttr ($cNode + "." + $attrName) ($mdNodeR + ".input2.input2X");
+			if (`objExists $cNode`) connectAttr ($cNode + "." + $attrName) ($mdNodeR + ".input2.input2Y");
+			if (`objExists $cNode`) connectAttr ($cNode + "." + $attrName) ($mdNodeR + ".input2.input2Z");
+		}
+	}
+}
+
+global proc mocapSkel(){
+
+	//string $sel[] = {"Ankle_L" "Knee_L" "Hip_L" "Ankle_R" "Knee_R" "Hip_R" "Wrist_L" "Elbow_L" "Shoulder_L" "Scapula_L" "Jaw_M" "Head_M" "Neck_M" "Wrist_R" "Elbow_R" "Scapula_R" "Chest_M" "BackB_M" "BackA_M" "Root_M"};
+	//for ($each in $sel){
+		// create joint at location
+	//	joint -n ("mocap_" + $each) ;
+		// create top node for control
+		// drive top node by mocapSkeleton
+	//}	
+}
+
+//Menu
+global proc csSkelMenu(){
+	source generateChannelMenu.mel;
+	
+	global int $parentCheck = 0;
+	string $cNode = "";
+  
+	if(`window -q -ex csSkelMenu`){
+  		deleteUI csSkelMenu;
+	}
+	
+    window -s 0 -t "Skeleton Tools" csSkelMenu;
+	
+	columnLayout;
+		frameLayout -w 300 -l "Set Variables";
+			columnLayout;
+				rowLayout -nc 2 -cw2 60 240;
+					button -bgc 1 0.5 0.5 -w 50 -l "setCtrl" -c "setCNode()" btn_setCtrl;
+					text -l "" text_cNode;
+				setParent ..;
+				rowLayout -nc 2 -cw2 100 200;
+					text -l "custom Attr Name";
+					textField -en 0 -w 200 -tx "custAttr" tx_attrName;
+				setParent ..;
+			setParent ..;
+		frameLayout -w 300 -l "Joint Creation | setCtrl to define control";
+			columnLayout;
+				text -l "Select the first joint in the joint chain you wish to duplicate.";
+				radioButtonGrp -l "Action:                      " -la2 "Swap" "Add" -nrb 2 -sl 1 -cw 1 100 -cw 2 50 -cw 3 50 rb_action;
+				checkBox -l "Include Scale" -v 1 cb_incScale;
+				button -bgc 1 1 0 -w 300 -l "Duplicate and Link Joint chain" -c "dupLinkJtChain(`text -q -l text_cNode`, `textField -q -tx tx_attrName`, `radioButtonGrp -q -sl rb_action`, `checkBox -q -v cb_incScale`)";
+				button -bgc 1 0 1 -w 300 -l "Quick Switch" -c "quickSwitch(`text -q -l text_cNode`, `textField -q -tx tx_attrName`, `radioButtonGrp -q -sl rb_action`, `checkBox -q -v cb_incScale`)";
+			setParent ..;
+		setParent ..;
+		frameLayout -w 300 -l "Squash Stretch | setCtrl to define global scale";
+			columnLayout;
+				rowLayout -nc 3 -cw3 100 50 150;
+					text -l "Level of Control";
+					intField -w 20 -min 0 -max 20 -v 4 if_curvePoints;
+					checkBox -en 0 -l "Use Existing Curve" -onc "intField -e -en 0 if_curvePoints" -ofc "intField -e -en 1 if_curvePoints" -ann "The last object selected will be taken as the curve object" cb_ownCurve;
+				setParent..;
+				checkBox -l "Parent Curve Chain" cb_parent;
+				rowLayout -nc 2 -cw2 80 220;
+					checkBox -l "Twist Controls" -v 1 cb_sqStTwist;
+					radioButtonGrp -l "Stretch Axis:" -la3 "X" "Y" "Z" -nrb 3 -sl 1 -cw 1 80 -cw 2 30 -cw 3 30 -cw 4 30 rb_axis;
+				setParent..;
+				text -l "";
+				text -l "Select all the joints you wish to apply squash stretch too.";
+				button -bgc 0 1 0 -w 300 -l "SquashStretch with Expression" -ann "SquashStretch with Expression" -c "squashStretch(`intField -q -v if_curvePoints`, `checkBox -q -v cb_parent`, `checkBox -q -v cb_sqStTwist`, `text -q -l text_cNode`, `radioButtonGrp -q -sl rb_axis`, 0)";
+				button -bgc 0 1 1 -w 300 -l "SquashStretch with MD_Node" -ann "SquashStretch with MD_Node" -c "squashStretch(`intField -q -v if_curvePoints`, `checkBox -q -v cb_parent`, `checkBox -q -v cb_sqStTwist`, `text -q -l text_cNode`, `radioButtonGrp -q -sl rb_axis`, 1, `checkBox -q -v cb_ownCurve`)";
+				button -bgc 1 1 0 -w 300 -l "FlexiPlane SquashStretch" -ann "FlexiPlane SquashStretch" -c "flexiPlane(`text -q -l text_cNode`, `radioButtonGrp -q -sl rb_axis`)";
+			setParent ..;
+		setParent ..;
+		frameLayout -w 300 -l "Other";
+			columnLayout;
+				rowLayout -nc 3 -cw3 100 150 50;
+					button -bgc 1 1 0 -w 98 -l "Orient Joints" -c "orientJnts(`ls -sl`)";
+					button -bgc 0 1 1 -w 148 -l "Create Mocap Skeleton" -c "mocapSkel()";
+					text "";
+				setParent ..;
+			setParent ..;
+		setParent ..;
+	setParent..;
+	
+	showWindow csSkelMenu;
+	window -e -w 300 -h 500 csSkelMenu;
+	
+	if (`objExists "cc_global"`){
+		text -e -l "cc_global" text_cNode;
+		button -e -bgc 0.5 1 0.5 btn_setCtrl;
+		textField -e -en 1 tx_attrName;
+	}
+}
+
+csSkelMenu();

@@ -1,0 +1,427 @@
+/*
+Rigging Tools v 1.02
+Script written by Peter Chapman.
+Web: https://peter-chapman.co.uk
+
+You are welcome to use and distribute this script, however,
+if you do so, send me a quick e-mail with your name and what
+you used it for.
+
+Also feel free to give me feedback / request changes.
+
+If you end up using the script for a commercial project,
+please contribute via PayPal using the email address
+above!
+*/
+
+global proc addShapes(){
+
+	string $sel[] = `ls -sl`;
+	string $target = $sel[0];
+	string $shapes[] = `ls -sl -dag -lf`;
+	
+	delete -ch $sel;
+	makeIdentity -apply true -t 1 -r 1 -s 1 -n 0 $sel;
+	
+	stringArrayRemoveAtIndex(0, $shapes);
+	stringArrayRemoveAtIndex(0, $sel);
+	
+	int $n = `size($shapes)`;
+	
+	int $i = 0;
+	for ($i = 0; $i < ($n); ++$i){
+		int $interrupt = progWindow($i, $n);
+		if ($interrupt == 1){
+			break;
+		}
+		select -r $target;
+		parent -add -shape ($shapes[$i]);
+	}
+	
+	delete $sel;
+}
+
+global proc addToLatt(){
+
+	string $sel[] = `ls -sl`;
+	string $lattice = $sel[(size($sel)-1)];
+	stringArrayRemoveAtIndex((size($sel)-1), $sel);
+	
+	for ($each in $sel){
+		lattice -e -g $each $lattice;
+    }
+}
+
+global proc remFromLatt(){
+
+	string $sel[] = `ls -sl`;
+	string $lattice = $sel[(size($sel)-1)];
+	stringArrayRemoveAtIndex((size($sel)-1), $sel);
+	
+	for ($each in $sel){
+		lattice -e -rm -g $each $lattice;
+    }
+}
+//Rivet
+global proc string rivet(){
+
+	//  Description:
+	//	Use "Rivet" to constrain locator to polygon or NURBS surfaces
+	//	Select two edges on polygon object
+	//	or select one point on NURBS surface and call rivet
+	//	Parent your rivets and buttons to this locator
+
+	string $nameObject;
+	string $namePOSI;
+	
+	string $parts[];
+	string $list[] = `filterExpand -sm 32`;
+	int $size = size($list);
+	
+	if ($size > 0){
+	
+		if ($size != 2){
+			error("No two edges selected");
+			return "";
+		}
+
+		tokenize($list[0],".",$parts);
+		$nameObject = $parts[0];
+		tokenize($list[0],"[]",$parts);
+		float $e1 = $parts[1];
+		tokenize($list[1],"[]",$parts);
+		float $e2 = $parts[1];
+	
+		string $nameCFME1 = `createNode curveFromMeshEdge -n "rivetCurveFromMeshEdge1"`;
+			setAttr ".ihi" 1;
+			setAttr ".ei[0]"  $e1;
+		string $nameCFME2 = `createNode curveFromMeshEdge -n "rivetCurveFromMeshEdge2"`;
+			setAttr ".ihi" 1;
+			setAttr ".ei[0]"  $e2;
+		string $nameLoft = `createNode loft -n "rivetLoft1"`;
+			setAttr -s 2 ".ic";
+			setAttr ".u" yes;
+			setAttr ".rsn" yes;
+	
+		$namePOSI = `createNode pointOnSurfaceInfo -n "rivetPointOnSurfaceInfo1"`;
+			setAttr ".turnOnPercentage" 1;
+			setAttr ".parameterU" 0.5;
+			setAttr ".parameterV" 0.5;
+	
+		connectAttr -f ($nameLoft + ".os") ($namePOSI + ".is");
+		connectAttr ($nameCFME1 + ".oc") ($nameLoft + ".ic[0]");
+		connectAttr ($nameCFME2 + ".oc") ($nameLoft + ".ic[1]");
+		connectAttr ($nameObject + ".w") ($nameCFME1 + ".im");
+		connectAttr ($nameObject + ".w") ($nameCFME2 + ".im");
+	}
+	
+	else{
+		$list = `filterExpand -sm 41`;
+		$size = size($list);
+
+		if ($size > 0){
+		
+			if ($size != 1){
+				error("No one point selected");
+				return "";
+			}
+			
+			tokenize($list[0],".",$parts);
+			$nameObject = $parts[0];
+			tokenize($list[0],"[]",$parts);
+			float $u = $parts[1];
+			float $v = $parts[2];
+			$namePOSI = `createNode pointOnSurfaceInfo -n "rivetPointOnSurfaceInfo1"`;
+					setAttr ".turnOnPercentage" 0;
+					setAttr ".parameterU" $u;
+					setAttr ".parameterV" $v;
+			connectAttr -f ($nameObject + ".ws") ($namePOSI + ".is");
+		}
+		
+		else{
+			error("No edges or point selected");
+			return "";
+		}
+	}
+
+	string $nameLocator = `createNode transform -n "rivet1"`;
+	createNode locator -n ($nameLocator + "Shape") -p $nameLocator;
+	
+	string $nameAC = `createNode aimConstraint -p $nameLocator -n ($nameLocator + "_rivetAimConstraint1")`;
+		setAttr ".tg[0].tw" 1;
+		setAttr ".a" -type "double3" 0 1 0;
+		setAttr ".u" -type "double3" 0 0 1;
+		setAttr -k off ".v";
+		setAttr -k off ".tx";
+		setAttr -k off ".ty";
+		setAttr -k off ".tz";
+		setAttr -k off ".rx";
+		setAttr -k off ".ry";
+		setAttr -k off ".rz";
+		setAttr -k off ".sx";
+		setAttr -k off ".sy";
+		setAttr -k off ".sz";
+	
+	connectAttr ($namePOSI + ".position") ($nameLocator + ".translate");
+	connectAttr ($namePOSI + ".n") ($nameAC + ".tg[0].tt");
+	connectAttr ($namePOSI + ".tv") ($nameAC + ".wu");
+	connectAttr ($nameAC + ".crx") ($nameLocator + ".rx");
+	connectAttr ($nameAC + ".cry") ($nameLocator + ".ry");
+	connectAttr ($nameAC + ".crz") ($nameLocator + ".rz");
+	
+	select -r $nameLocator;
+	return ($nameLocator);
+}
+
+global proc AddSkinned(){
+	string $sel[] = `ls -sl`;
+	int $selsize = `size($sel)`;
+	string $base = $sel[($selsize-1)];
+	
+	for ($i=0; $i < ($selsize-1); $i++){
+		select -r $base $sel[$i];
+		skinClusterInfluence 1 " -dr 4 -lw true -wt 0";
+		setAttr ($sel[$i] + ".lockInfluenceWeights") 0;
+	}
+	
+	select -cl;
+}
+
+global proc makeFollow(){
+	string $sel[] = `ls -sl`;
+	string $end = $sel[size($sel)-1];
+	stringArrayRemoveAtIndex((size($sel)-1), $sel);
+	for ($each in $sel){
+		string $parent = `group -n ($each + "Follow") $each`;
+		string $followCon[] = `parentConstraint -mo -weight 1 $end $parent`;
+		if (`attributeExists "lockOutput" $followCon[0]`) {
+      		setAttr ($followCon[0] + ".lockOutput") 0;
+      	}
+		addAttr -ln "follow" -at double -min 0 -max 1 $each;
+		setAttr -e-keyable true ($each + ".follow");
+		setKeyframe ($parent + ".t");
+		setKeyframe ($parent + ".r");
+		connectAttr ($each + ".follow") ($parent + ".blendParent1");
+	}
+}
+
+global proc makeClustersOnCurve(){
+	string $sel[] = `ls -sl`;
+	string $nameShape[]= `ls -dag -lf -ap -sl`;
+	int $span = `getAttr ($nameShape[0] + ".spans")`;
+	string $clusters[];
+		
+	for ($a=0;$a<=($span+2);$a++){
+		select -r ($sel[0] +".cv[" +$a +"]") ;
+		string $new[] = `newCluster "-relative -envelope 1"`;
+		$clusters[size($clusters)] = ($new[0] + "Handle");
+	}
+}
+
+global proc ccJoints(){
+	string $sel[] = `ls -sl`;
+	string $curves[];
+	int $i;
+	for ($each in $sel){
+		string $curve[] = `circle -ch 0 -s 8 -r 1 -n ("cc_" + $sel[0])`;
+		float $trA[] = `xform -q -ws -t $each`;
+		float $rpA[] = `xform -q -rp $each`;
+		float $rpB[] = `xform -q -rp $curve[0]`;
+		xform -ws -t ($trA[0] + $rpA[0] - $rpB[0]) ($trA[1] + $rpA[1] - $rpB[1]) ($trA[2] + $rpA[2] - $rpB[2]) $curve[0];
+		parentConstraint -mo -weight 1 $curve[0] $each;
+	}
+}
+
+global proc parentPrev(){
+	string $sel[] = `ls -sl`;
+	for ($i = 0; $i < (size($sel)-1); $i++){
+		parent $sel[$i+1] $sel[$i];
+	}
+}
+
+global proc parentPrevCon(){
+	string $sel[] = `ls -sl`;
+	for ($i = 0; $i < (size($sel)-1); $i++){
+		parentConstraint -mo -weight 1 $sel[$i] $sel[$i+1];
+	}
+}
+
+global proc connT_RPT(){
+	string $sel[] = `ls -sl`;
+	if (size($sel) != 2) confirmDialog -m "Two objects must be selected";
+	else{
+		connectAttr ($sel[0] + ".t") ($sel[1] + ".rotatePivotTranslate");
+	}
+}
+
+global proc biDiLink(){
+	string $sel[] = `ls -sl`;
+	if (size($sel) != 2) confirmDialog -m "Two objects must be selected";
+	else{
+		connectAttr ($sel[0] + ".t") ($sel[1] + ".rotatePivotTranslate");
+		connectAttr ($sel[1] + ".t") ($sel[0] + ".rotatePivotTranslate");
+		group -n ($sel[1] + "Grp") $sel[1];
+	}
+}
+
+global proc buildObjC(int $type, int $mesh){
+	string $sel[];
+	string $cl[];
+	if ($mesh == 1){
+		ConvertSelectionToVertices;
+		$cl = `newCluster "-envelope 1"`;
+		$sel = $cl;
+	}
+	else {
+		$sel = `ls -sl`;
+	}
+	string $obj[];
+	if ($type == 1){
+		$obj = `joint`;
+	}
+	else {
+		$obj = `spaceLocator`;
+	}
+	string $pCon[] = `pointConstraint $sel $obj`;
+	delete $pCon $cl;
+	select $obj;
+}
+
+global proc ccClusters(){
+	string $sel[] = `ls -sl`;
+	string $nameShape[]= `ls -dag -lf -ap -sl`;
+	int $span = `getAttr ($nameShape[0] + ".spans")`;
+	string $clusters[];
+		
+	for ($a=0;$a<=($span+2);$a++){
+		select -r ($sel[0] +".cv[" +$a +"]") ;
+		string $new[] = `newCluster "-relative -envelope 1"`;
+		$clusters[size($clusters)] = ($new[0] + "Handle");
+	}
+}
+
+global proc copyCustomAttr(int $connect){
+	string $sel[] = `ls -sl`;
+	
+	if (size($sel) < 2) error "Not enough objects selected";
+	else{
+		string $base = $sel[0];
+		stringArrayRemoveAtIndex(0, $sel);
+		
+		string $custAttr[] = `listAttr -ud $base`;
+		
+		for ($eachObj in $sel){
+			for ($eachAttr in $custAttr){
+				// create new Attr
+				if (objExists ($eachObj + "." + $eachAttr)) warning ("An attribute with the name " + $eachAttr + " already exists");
+				else{
+					// getAttrData
+					
+					float $value = `getAttr ($base + "." + $eachAttr)`;
+					string $at = `addAttr -q -at ($base + "." + $eachAttr)`;
+					int $hasMin = `addAttr -q -hnv ($base + "." + $eachAttr)`;
+					int $hasMax = `addAttr -q -hxv ($base + "." + $eachAttr)`;
+					int $min = `addAttr -q -min ($base + "." + $eachAttr)`;
+					int $max = `addAttr -q -max ($base + "." + $eachAttr)`;
+					addAttr -ln $eachAttr -k 1 -at $at -dv $value $eachObj;
+					if ($hasMin) addAttr -e -hnv $hasMin -min $min ($eachObj + "." + $eachAttr);
+					if ($hasMax) addAttr -e -hxv $hasMax -max $max ($eachObj + "." + $eachAttr);
+					if ($connect){
+						if (size($sel) != 1){
+							warning "Can only connect attributes if two items are selected";
+							$connect = 0;
+						}
+						else{
+							connectAttr -f ($eachObj + "." + $eachAttr) ($base + "." + $eachAttr);
+						}
+					}
+					
+				}
+			}
+		}
+	}
+}
+
+global proc buildFlexiPlane(){
+
+	// create Nurbs plane
+	// create nHair and delete all but follicles
+	// create cv_squares at end points
+	// duplicate plane as blendShape
+	// build wire - base 2
+	// cluster first two and last two and middle
+	// wire deformer - increase dropoff distance
+	// create sphere (and make non-renderable) for mid
+	// connect controls to clusters
+	// group shit together
+	// point constraint sphereGrp to end control to bind in centre
+	// put surface and controls into global group
+	// put everything else into extras group
+	// scale constrain each folicle
+	// build global curve
+	// create twist node and attach start and end to controls
+	// change rotate order to xzy (xform -roo xzy)
+	// move input of twist under then bend
+	// make curve info node (arclen -ch 1)
+	// make md node - divide - md_sqSt
+	// put length into 2X and arclen into 1X
+	// duplicate md_sqSt as md_volume and set 1X to 1 and md_sqSt outputX into 2X
+	// make condition node as cond_volume and set second term as 1
+	// put global sqStEnable attr into first term
+	// plug md_volume outputX into ifTrueR
+	
+}
+
+global proc csRiggingToolsMenu(){
+	source generateChannelMenu.mel;
+  
+	if(`window -q -ex csRiggingToolsMenu`){
+  		deleteUI csRiggingToolsMenu;
+	}
+	
+    window -s 0 -t "Rigging Tools" csRiggingToolsMenu;
+	
+	columnLayout;
+		frameLayout -w 250 -l "Control Systems";
+			columnLayout;
+				button -w 250 -bgc 0 1 0 -l "Combine Curve Shapes" -ann "Combine Curve Shapes" -c "addShapes()";
+				rowLayout -nc 2 -cw2 100 150;
+					button -w 100 -bgc 0 1 0 -l "Copy Cust Attr." -ann "Copy any custom attributes over to a new object" -c "copyCustomAttr(`checkBox -q -v cb_connect`)";
+					checkBox -v 0 -l "Also connect old to new" cb_connect;
+				setParent ..;
+				button -w 250 -bgc 1 1 0 -l "Create Follow Control" -ann "creates a follow attribute on all selected to parent to the last selected" -c "makeFollow()";
+				button -w 250 -bgc 0 1 1 -l "Create control curve on each joint" -ann "Creates and parent contraints a control curve on each joint" -c "ccJoints()";
+				button -w 250 -bgc 0 1 1 -l "Create cluster on each curve point" -ann "Creates a cluster on each vertex of a curve" -c "ccClusters()";
+				button -w 250 -bgc 0.5 0.5 1 -l "Parent each to previous" -ann "Parents an object chain to the previous node" -c "parentPrev()";
+				button -w 250 -bgc 1 0.5 0.5 -l "Parent Constrain each to previous" -ann "Parents an object chain to the previous node using a constraint" -c "parentPrevCon()";
+				button -w 250 -bgc 0 1 0 -l "Connect Translate to RotatePivotTranslate" -ann "Connect Translate to RotatePivotTranslate" -c "connT_RPT()";
+				button -w 250 -bgc 1 1 0 -l "Create Bi-Directional Link" -ann "Create Bi-Directional Link" -c "biDiLink()";
+			setParent ..;
+		setParent..;
+		frameLayout -w 250 -l "Build Systems";
+			columnLayout;
+				button -w 250 -bgc 0 1 0 -l "Rivet" -ann "Rivet" -c "rivet()";
+				rowLayout -nc 2 -cw2 100 150;
+					button -w 125 -bgc 1 1 0 -l "Joint in Centre" -ann "Build Joint in Centre" -c "buildObjC(1,0)";
+					button -w 125 -bgc 1 1 0 -l "Loc in Centre" -ann "Build Locator in Centre" -c "buildObjC(0,0)";
+				setParent ..;
+				rowLayout -nc 2 -cw2 100 150;
+					button -w 125 -bgc 1 1 0 -l "Joint in Centre (Mesh)" -ann "Build Joint in Centre" -c "buildObjC(1,1)";
+					button -w 125 -bgc 1 1 0 -l "Loc in Centre (Mesh)" -ann "Build Locator in Centre" -c "buildObjC(0,1)";
+				setParent ..;
+			setParent ..;
+		setParent..;
+		frameLayout -w 250 -l "Existing Systems";
+			columnLayout;
+				button -w 250 -bgc 0 1 0 -l "Add object(s) to lattice" -ann "Add object(s) to lattice" -c "addToLatt()";
+				button -w 250 -bgc 1 1 0 -l "Remove object(s) from lattice" -ann "Remove object(s) from lattice" -c "remFromLatt()";
+				button -w 250 -bgc 0 1 1 -l "Add joint(s) to skinned object" -ann "Add joint(s) to skinned object" -c "AddSkinned()";
+			setParent ..;
+		setParent..;
+	setParent..;
+	
+	showWindow csRiggingToolsMenu;
+	window -e -w 250 -h 420 csRiggingToolsMenu;
+}
+
+csRiggingToolsMenu();

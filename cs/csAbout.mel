@@ -1,0 +1,39 @@
+/*
+About v 1.01
+Scripts written by Peter Chapman.
+Web: https://peter-chapman.co.uk
+
+You are welcome to use and distribute this script, however,
+if you do so, send me a quick e-mail with your name and what
+you used it for.
+
+Also feel free to give me feedback / request changes.
+
+If you end up using the script for a commercial project,
+please contribute via PayPal using the email address
+above!
+*/
+
+global proc csAboutMenu(){
+
+	if ( `window -exists csAboutMenu` ) {
+		 deleteUI csAboutMenu;
+	}
+		
+	window -s 0 -t "About" csAboutMenu;
+		
+	columnLayout;
+		frameLayout -w 300 -l "Peter Chapman";
+			scrollField -w 300 -h 90 -ww 1 -ed 0 -tx "CS Mel Suite\n\nScripts written by Peter Chapman\nWeb: https://peter-chapmanstudios.co.uk";
+		setParent ..;
+		frameLayout -w 300 -l "csTools v1.01";
+			scrollField -w 300 -h 150 -ww 1 -ed 0 -tx "csTools is a suite of Mel Scripts to help increase productivity for Animation and Rigging.\n\nWritten with character and technical animators in mind, these scripts have been designed to provide extra functionality and to automate common complicated rigging tasks.";
+		setParent ..;
+	setParent ..;
+
+	window -e -w 300 -h 600 csAboutMenu;
+		 
+	showWindow csAboutMenu;
+}
+
+csAboutMenu();

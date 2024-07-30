@@ -1,0 +1,194 @@
+//  Chart Builder v 1.01
+//	Script written by Peter Chapman.
+//	Email: Peter@chapmanstudios.co.uk
+//
+//	You are welcome to use and distribute this script, however,
+//	if you do so, send me a quick e-mail with your name and what
+//	you used it for.
+//
+//	Also feel free to give me feedback / request changes.
+//
+//	If you end up using the script for a commercial project,
+//	feel free to contribute via PayPal using the email address
+//	above!
+
+global proc buildChart(int $chart, string $data[]){
+
+	if ($chart == 1){
+	
+		if (`text -q -l tx_noCol` != 3) confirmDialog -t "Warning" -m "Please provide X, Y and Z co-ordinates only." -b "Ok";
+		
+		else{
+			float $maxX;
+			float $maxY;
+			float $maxZ;
+			float $minX;
+			float $minY;
+			float $minZ;
+		
+			string $curve = `curve -p 0 0 0 -n "mainCurve"`;
+			
+			for ($each in $data){
+				string $buffer[];
+				string $nCol = `tokenize $each "," $buffer`;
+
+				float $cX = $buffer[0];
+				float $cY = $buffer[1];
+				float $cZ = $buffer[2];
+				
+				if ($cX > $maxX) $maxX = $cX;
+				if ($cY > $maxY) $maxY = $cY;
+				if ($cZ > $maxZ) $maxZ = $cZ;
+				if ($cX < $minX) $minX = $cX;
+				if ($cY < $minY) $minY = $cY;
+				if ($cZ < $minZ) $minZ = $cZ;
+				
+				curve -a -p $cX $cY $cZ $curve;
+			}
+			
+			string $borderX = `curve -d 1 -p $minX 0 0 -p $maxX 0 0 -n "borderX"`;
+			string $borderY = `curve -d 1 -p 0 $minY 0 -p 0 $maxY 0 -n "borderY"`;
+			string $borderZ = `curve -d 1 -p 0 0 $minZ -p 0 0 $maxZ -n "borderZ"`;
+			
+			delete ($curve + ".cv[0]");
+			
+			group -n "Graph" $curve $borderX $borderY $borderZ;
+		}
+	}
+	
+	if ($chart == 2){
+	
+		int $n = 0;
+		int $maxH = 0;
+		int $nBars = 0;
+	
+		for ($each in $data){
+			string $buffer[];
+			$nBars = `tokenize $each "," $buffer`;
+			for ($i = 0; $i < $nBars; $i++){
+				float $h = $buffer[$i];
+				if ($h > $maxH) $maxH = $h;
+				string $cube[] = `polyCube`;
+				scale 1 $h 1 $cube;
+				move (0.5 + $n) (0.5 * $h) (0.5 + $i) $cube;
+			}
+			$n++;
+		}
+		
+		string $borderX = `curve -d 1 -p 0 0 0 -p (size($data)) 0 0 -n "borderX"`;
+		string $borderY = `curve -d 1 -p 0 0 0 -p 0 $maxH 0 -n "borderY"`;
+		string $borderZ = `curve -d 1 -p 0 0 0 -p 0 0 $nBars -n "borderZ"`;
+	}
+	
+	if ($chart == 3){
+		float $total = 0;
+		float $cTot = 0;
+		for ($each in $data){
+			float $n = $each;
+			$total = $total + $n;
+		}
+		print $total;
+		for ($each in $data){
+			float $n = $each;
+			string $buffer[];
+			int $nBars = `tokenize $each "," $buffer`;
+			if ($nBars != 1) confirmDialog -t "Warning" -m "Pie charts can only be built around a single list of numbers" -b "Ok";
+			else{
+				float $height = ((2 / $total) * $n);
+				float $start = ((360 / $total) * $cTot);
+				float $end = (((360 / $total) * $cTot) + ((360 / $total) * $n));
+				cylinder -ch 1 -o on -po 0 -ax 0 1 0 -s 20 -hr $height -ssw $start -esw $end;
+				$cTot = $cTot + $n;
+			}
+		}
+	}
+}
+
+global proc string[] getData(){
+	string $files[] = `fileDialog2 -fm 1 -dir "/usr/u/bozo/myFiles/" -ff ("Text File (*.txt)")`;
+	string $filePath = $files[0];
+	$fileId = `fopen $filePath "r"` ;
+	string $nextLine = `fgetline $fileId`;
+	
+	string $buffer[];
+	string $nCol = `tokenize $nextLine "," $buffer`;
+	
+	string $data[];
+	while (size($nextLine) > 0){
+		string $cleanLine = strip($nextLine) ;
+		$data[size($data)] = $cleanLine ;
+		$nextLine = `fgetline $fileId`;
+	}
+	
+	text -e -l $filePath tx_file;
+	text -e -l (size($data)) tx_noRow;
+	text -e -l $nCol tx_noCol;
+	return $data;
+}
+
+global proc chartHelpMenu(){
+
+	source generateChannelMenu.mel;
+	
+    if(`window -q -ex chartHelpMenu`){
+      deleteUI chartHelpMenu;
+    }
+
+    window  -s 0 -w 400 -h 100 -title "Help / About" chartHelpMenu;
+    columnLayout ColumnLayout;
+
+	scrollField
+		-w 400
+		-h 100
+		-wordWrap true
+		-editable false
+		-text ( "This script will take a text file and convert it into a chart. \n\n"
+			+ "Columns need to be separated by commas to be read correctly."
+			);
+	
+	button -w 400 -bgc 1 0.5 0 -l "CLOSE" -c "deleteUI chartHelpMenu;";
+	showWindow chartHelpMenu;
+}
+
+global proc csChartBuilderMenu(){
+
+	int $chart = 1;
+	
+	if ( `window -exists csChartBuilderMenu` ) {
+		 deleteUI csChartBuilderMenu;
+	}
+		
+	window -s 0 -t "Chart Builder" csChartBuilderMenu;
+		
+	columnLayout;
+		button -w 300 -l "Help / About" -c "chartHelpMenu()";
+		frameLayout -w 300 -l "Data:";
+			rowLayout -nc 2 -cw2 250 50;
+				text -l "" tx_file;
+				button -w 50 -bgc 0 1 0 -l "Load" -c "string $data[] = getData()";
+			setParent ..;
+			rowLayout -nc 4 -cw4 100 40 100 40;
+				text -l "Number of rows:";
+				text -l 0 tx_noRow;
+				text -l "Number of columns:";
+				text -l 0 tx_noCol;
+			setParent ..;
+		setParent ..;
+		frameLayout -w 300 -l "Charts";
+			radioButtonGrp
+				-l ""
+				-la3 "Graph" "Bar Chart" "Pie Chart (beta)"
+				-on1 "$chart = 1"
+				-on2 "$chart = 2"
+				-on3 "$chart = 3"
+				-nrb 3 -sl 0 -cw 1 20 -cw 2 80 -cw 3 80 -cw 4 80;
+			button -w 296 -bgc 1 1 0 -l "Build" -c "buildChart($chart, $data)";
+		setParent ..;
+	setParent ..;
+
+	window -e -w 300 -h 50 csChartBuilderMenu;
+		 
+	showWindow csChartBuilderMenu;
+}
+
+csChartBuilderMenu();

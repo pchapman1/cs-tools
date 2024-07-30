@@ -1,0 +1,108 @@
+//	Temp Sel/Pose v1.0.1
+//	Script written by Peter Chapman.
+//	Email: peter@chapmanstudios.co.uk
+//
+//	You are welcome to use and distribute this script, however,
+//	if you do so, send me a quick e-mail with your name and what
+//	you used it for.
+//
+//	Also feel free to give me feedback / request changes.
+//
+//	If you end up using the script for a commercial project,
+//	feel free to contribute via PayPal using the email address
+//	above!
+
+	int $noSel = 0;
+	int $noPose = 0;
+
+global proc int tempSel(int $noSel, string $name){
+
+	$noSel++;
+	if ($name == "Custom Name") $name = ("Sel_");
+
+	string $sel[] = `ls -sl`;
+	
+	string $code;
+	
+	for ($each in $sel){
+			$code =  ("catch (`select -add \""+$each+"\"`);\n")+$code;
+	}
+	
+	$code = "select -cl;\n"+$code;
+	
+	setParent cl_sel;
+	button -w 120 -bgc 1 1 0 -l ($name + $noSel) -c $code ("btn_sel"+$noSel);
+	return $noSel;
+}
+
+global proc int tempPose(int $noPose, string $name){
+
+	$noPose++;
+	if ($name == "Custom Name") $name = ("Sel_");
+
+	string $sel[] = `ls -sl`;
+	
+	string $code;
+	
+	for ($each in $sel){
+		string $keyableAttrs[] = `listAttr -r -w -k -u -v -m -s $each`;
+		if ( !`size($keyableAttrs)`){
+			continue;	
+		} 
+		for ($attr in $keyableAttrs)
+		{
+			string $value = string ( `getAttr ($each+"."+$attr)` );
+			$code = ("catch (`setAttr \""+$each +"."+$attr+"\" "+ $value +"`);\n")+$code;
+		}
+	}
+	
+	setParent cl_pose;
+	button -w 120 -bgc 1 0 1 -l ($name + $noPose) -c $code ("btn_pose"+$noPose);
+	return $noPose;
+}
+
+global proc resetSelPose(){
+	deleteUI cl_sel;
+	deleteUI cl_pose;
+	setParent rl_btn;
+		columnLayout cl_sel;
+			text "Selections:";
+		setParent ..;
+		columnLayout cl_pose;
+			text "Poses:";
+		setParent;
+	setParent ..;
+}
+
+global proc selPoseTempMenu(){
+
+	if ( `window -exists selPoseTempMenu` ) {
+		 deleteUI selPoseTempMenu;
+	}
+		
+	window -t "Temp Sel/Pose" selPoseTempMenu;
+		
+	columnLayout  cl_main;
+		textField -w 240 -tx "Custom Name" tf_name;
+		rowLayout -nc 2 -cw2 120 120;
+			button -w 120 -bgc 0 1 0 -l "Get Selection" -c "$noSel = tempSel($noSel, `textField -q -tx tf_name`)" btn_tempSel;
+			button -w 120 -bgc 0 1 1 -l "Get Pose" -c "$noPose = tempPose($noPose, `textField -q -tx tf_name`)" btn_poseSel;
+		setParent ..;
+		text "";
+		rowLayout -nc 2 -cw2 120 120 rl_btn;
+			columnLayout cl_sel;
+				text "Selections:";
+			setParent ..;
+			columnLayout cl_pose;
+				text "Poses:";
+			setParent ..;
+		setParent ..;
+		text -l  "";
+		button -w 240 -bgc 1 0 0 -l "Reset" -c "resetSelPose()" btn_reset;
+		
+	window -e -w 240 -h 50 selPoseTempMenu;
+		 
+	showWindow selPoseTempMenu;
+}
+
+selPoseTempMenu();

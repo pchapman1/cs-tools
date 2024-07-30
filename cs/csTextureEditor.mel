@@ -1,0 +1,178 @@
+//  Texture Editor v 1.01
+//	Script written by Peter Chapman.
+//	Email: peter@chapmanstudios.co.uk
+//
+//	You are welcome to use and distribute this script, however,
+//	if you do so, send me a quick e-mail with your name and what
+//	you used it for.
+//
+//	Also feel free to give me feedback / request changes.
+//
+//	If you end up using the script for a commercial project,
+//	feel free to contribute via PayPal using the email address
+//	above!
+
+
+global proc buildSSS(string $ambient, int $assign){
+	string $sel[] = `ls -sl`;
+	
+	for ($each in $sel){
+		string $color[] = `listConnections ($each + ".color")`;
+		float $baseColour[] = `getAttr ($each + ".color")`;
+		string $alpha[] = `listConnections ($each + ".transparencyR")`;
+		string $bump[] = `listConnections ($each + ".normalCamera")`;
+		string $misss = `mrCreateCustomNode -asShader "" misss_fast_simple_maya`;
+		string $misss = `rename $misss ($each + "_misssSG")`;
+		string $sg[] = `listConnections ($misss + ".outValue")`;
+		setAttr ($misss + ".overall_color") -type double3 $baseColour[0] $baseColour[1] $baseColour[2];
+		setAttr ($misss + ".front_sss_color") -type double3 $baseColour[0] $baseColour[1] $baseColour[2];
+		setAttr ($misss + ".back_sss_color") -type double3 $baseColour[0] $baseColour[1] $baseColour[2];
+		if ($color[0] != "") connectAttr ($color[0] + ".outColor") ($misss + ".overall_color");
+		if ($color[0] != "") connectAttr ($color[0] + ".outColor") ($misss + ".front_sss_color");
+		if ($color[0] != "") connectAttr ($color[0] + ".outColor") ($misss + ".back_sss_color");
+		if ($alpha[0] != "") connectAttr ($color[0] + ".outAlpha") ($misss + ".overall_colorA");
+		if ($alpha[0] != "") connectAttr ($color[0] + ".outAlpha") ($misss + ".front_sss_color");
+		if ($alpha[0] != "") connectAttr ($color[0] + ".outAlpha") ($misss + ".back_sss_color");
+		if ($bump[0] != "") connectAttr ($bump[0] + ".outNormal") ($misss + ".normalCamera");
+		connectAttr ($ambient + ".outValue") ($misss + ".ambient");
+		connectAttr ($ambient + ".outValueA") ($misss + ".ambientA");
+		//string $lightMap[] = `listConnections ($misss + ".lightmap")`;
+		// connectAttr -f mentalrayTexture1.message ($misss + ".lightmap");
+		if ($assign == 1){
+			string $objects[] = `hyperShade -objects $each`;
+			sets -e -forceElement $sg[0];
+		}
+		setAttr ($misss + ".specular")  -type double3 0.262 0.262 0.262;
+		setAttr ($misss + ".exponent")  1;
+		AEhardwareTextureChangedCB "ambient overall_color diffuse_color front_sss_color back_sss_color specular" leppyGirl_FemaleFace1_misssSG.message;
+	}
+}
+
+global proc addSSTex(){
+	string $sel[] = `ls -sl`;
+	connectAttr -f ($sel[0] + ".outColor") ($sel[1] + ".front_sss_color");
+	connectAttr -f ($sel[0] + ".outColor") ($sel[1] + ".back_sss_color");
+	connectAttr -f ($sel[0] + ".outAlpha") ($sel[1] + ".front_sss_colorA");
+	connectAttr -f ($sel[0] + ".outAlpha") ($sel[1] + ".back_sss_colorA");
+}
+
+global proc string buildAO(){
+	string $AOnode = `mrCreateCustomNode -asTexture "" mib_amb_occlusion`;
+	button -e -en 1 btn_buildSSS;
+	return $AOnode;
+	
+}
+
+global proc string loadAO(){
+	string $sel[] = `ls -sl`;
+	button -e -en 1 btn_buildSSS;
+	string $AOnode = $sel[0];
+	return $AOnode;
+}
+
+global proc reloadTextures(){
+	
+	source AEfileTemplate.mel;
+	
+	string $sel[] = `ls -tex`;
+	
+	for ($each in $sel){
+		if (`attributeQuery -node $each -exists "fileTextureName"`){
+			AEfileTextureReloadCmd ($each + ".fileTextureName");
+        }
+    }
+}
+
+global proc reMapTextures(string $sub){
+	string $sel[] = `ls -sl`;
+	
+	
+	for ($each in $sel){
+		if (`attributeQuery -node $each -exists "fileTextureName"`){
+			string $buffer[];
+			string $path = `getAttr ($each + ".fileTextureName")`;
+			tokenize $path "//" $buffer;
+			setAttr -type "string" ($each + ".fileTextureName") ("sourceimages/" + $sub + "/" + $buffer[size($buffer)-1]);
+		}
+	}
+}
+
+global proc reMapTexturesFolder(){
+	string $sel[] = `ls -type "file"`;
+
+	for ($each in $sel){
+		if (`attributeQuery -node $each -exists "fileTextureName"`){
+			string $buffer[];
+			string $path = `getAttr ($each + ".fileTextureName")`;
+			tokenize $path "/" $buffer;
+			stringArrayRemoveAtIndex (0, $buffer);
+			//stringArrayRemoveAtIndex (0, $buffer);
+			string $string = "";
+			for ($e in $buffer) $string = $string + "/" + $e;
+			setAttr -type "string" ($each + ".fileTextureName") ("sourceimages/" + $string);
+		}
+	}
+}
+
+global proc gammaCorrect(){
+	string $sel[] = `ls -sl -type "file"`;
+	
+	for ($each in $sel){
+		string $value[] = `listConnections ($each + ".outColor")`;
+		if (`objExists ($value[0] + ".gamma")`) warning ("Skipping: " + $each + ": Gamma node present");
+		else {
+			string $gamma = `shadingNode -asUtility gammaCorrect`;
+			setAttr ($gamma + ".gamma") 0.454 0.454 0.454;
+			connectAttr -f ($each + ".outColor") ($gamma + ".value");
+			
+			for ($output in $value) connectAttr -f ($gamma + ".outValue") ($output + ".color");
+		}
+	}
+}
+
+global proc csTextureEditorMenu(){
+	
+	if ( `window -exists csTextureEditorMenu` ) {
+	 deleteUI csTextureEditorMenu;
+	}
+	
+	window -s 0 -t "Texture Editor" csTextureEditorMenu;
+	
+	string $AOnode = "";
+	 
+	columnLayout;
+		frameLayout -w 300 -l "Creation";
+			columnLayout;
+				button -w 297 -bgc 1 1 0 -l "build Ambient Occlusion" -c "$AOnode = buildAO()" btn_buildAO;
+				button -w 297 -bgc 1 1 0 -l "load Ambient Occlusion" -c "$AOnode = loadAO()" btn_loadAO;
+				text -l "";
+				button -en 0 -w 297 -bgc 0 1 1 -l "Build SSS material from selected" -c "buildSSS($AOnode, `checkBox -q -v cb_assign`)" btn_buildSSS;
+				checkBox -v 1 -l "Assign To Model" cb_assign;
+				text -l "";
+				button -w 297 -bgc 0 1 1 -l "add SS file" -c "addSSTex()";
+				text -l "";
+			setParent ..;
+		setParent ..;
+		frameLayout -w 300 -l "Enhancement";
+			columnLayout;
+				button -w 297 -bgc 1 1 0 -l "Gamma Correct" -ann "Builds a Gamma Correct node for selected textures" -c "gammaCorrect";
+			setParent ..;
+		setParent ..;
+		frameLayout -w 300 -l "Files and Organisation";
+			columnLayout;
+				rowLayout -nc 2 -cw2 50 250;
+					text -l "Subfolder:";
+					textField -w 245 tf_sub;
+				setParent ..;
+				button -w 297 -bgc 1 1 0 -l "reMapTextures" -c "reMapTextures(`textField -q -tx tf_sub`)";
+				button	-bgc 1 0.5 0	-w 297 -l "Reload All Textures" -c "reloadTextures()";
+			setParent ..;
+		setParent ..;
+	setParent ..;
+	
+	window -e -w 200 -h 240 csTextureEditorMenu;
+	 
+	showWindow csTextureEditorMenu;
+}
+
+csTextureEditorMenu();

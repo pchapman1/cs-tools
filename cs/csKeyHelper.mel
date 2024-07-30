@@ -1,0 +1,80 @@
+//  Key Helper v 1.01
+//	Script written by Peter Chapman.
+//	Email: peter@chapmanstudios.co.uk
+//
+//	You are welcome to use and distribute this script, however,
+//	if you do so, send me a quick e-mail with your name and what
+//	you used it for.
+//
+//	Also feel free to give me feedback / request changes.
+//
+//	If you end up using the script for a commercial project,
+//	feel free to contribute via PayPal using the email address
+//	above!
+
+global proc deleteAllKeys(){
+
+	source generateChannelMenu.mel;
+	
+	string $sel[] = `ls -sl`;
+	string $attrList[];
+		
+	for ($each in $sel){
+		$attrList = `listAttr -v -k -u $each`;
+		for ($attr in $attrList){
+			CBdeleteConnection ($each + "." + $attr);
+		}
+	}
+}
+
+global proc frameRenderLayer(){
+	int $startFrame = `getAttr "defaultRenderGlobals.startFrame"`;
+	int $endFrame = `getAttr "defaultRenderGlobals.endFrame"`;
+	playbackOptions -min $startFrame -max $endFrame ;
+	currentTime $startFrame ;
+}
+
+global proc csKeyHelperMenu(){
+
+	if ( `window -exists csKeyHelper_menu` ) {
+	 deleteUI csKeyHelper_menu;
+	}
+	window -t "Key Helper" csKeyHelper_menu;
+	 
+	columnLayout;
+		frameLayout -w 300 -l "Key Frames";
+			rowLayout -nc 2 -cw2 100 200;
+				text -w 97 -l "GoTo Frame";
+				text -w 197 -l "Copy/Paste KeyFrames";
+			setParent ..;
+			rowLayout -nc 3 -cw3 98 98 98;
+				floatField
+					-w 97
+					-cc "currentTime `floatField -q -v keyFloat`;"
+					-ec "currentTime `floatField -q -v keyFloat`;"
+					keyFloat;
+				button -w 97 -bgc 1 1 0 -l "Copy" -c "timeSliderCopyKey;";
+				button -w 97 -bgc 1 0.5 0 -l "Paste" -c "timeSliderPasteKey false;";
+			setParent ..;
+			text -l "";
+		setParent ..;
+		button -w 300 -bgc 1 0.2 0.2 -l "Delete All Keys" -c "deleteAllKeys()";
+		frameLayout -w 300 -l "Time Line Tools";
+			columnLayout;
+			button -w 300 -bgc 1 0.5 0 -l "Set time to render layer" -ann "SetTimeToRenderLayer" -c "frameRenderLayer()" btn_setToRenderLayer;
+			button -w 300 -bgc 1 1 0 -l "Extend time line" -ann "Extend time line" -c "playbackOptions -min (`playbackOptions -q -min` - 1) -max (`playbackOptions -q -max` + 1);" btn_extendTimeLine;
+		setParent ..;
+		frameLayout -w 300 -l "GraphEditor Tools";
+			rowLayout -nc 2 -cw2 148 148;
+				button -w 148 -bgc 0 1 0 -l "+360" -ann "Add 360 to Keyframe value" -c "keyframe -animation keys -r -valueChange 360" btn_plus360;
+				button -w 148 -bgc 0 1 1 -l "-360" -ann "Take 360 from Keyframe value" -c "keyframe -animation keys -r -valueChange -360" btn_minus360;
+			setParent ..;
+		setParent ..;
+	setParent ..;
+
+	window -e -w 300 -h 50 csKeyHelper_menu;
+	 
+	showWindow csKeyHelper_menu;
+}
+
+csKeyHelperMenu();

@@ -1,0 +1,118 @@
+//  Mesh Control v 1.01
+//	Script written by Peter Chapman.
+//	Email: Peter@chapmanstudios.co.uk
+//
+//	You are welcome to use and distribute this script, however,
+//	if you do so, send me a quick e-mail with your name and what
+//	you used it for.
+//
+//	Also feel free to give me feedback / request changes.
+//
+//	If you end up using the script for a commercial project,
+//	feel free to contribute via PayPal using the email address
+//	above!
+
+global proc mirrorInst(){
+
+	string $sel[] = `ls -sl`;
+	
+	for ($each in $sel){
+	
+		delete -ch $each;
+		makeIdentity -apply true -t 1 -r 1 -s 1 -n 0 $each;
+		move 0 0 0 ($each + ".scalePivot") ($each + ".rotatePivot");
+		instance $each;
+		
+		// Mirror Selected Object
+		setAttr ($each + ".scaleX") -1;
+    }
+}
+
+global proc mirrorConnect(){
+	string $sel[] = `ls -sl`;
+	
+	if (size($sel) != 2){
+		print "/n Not enough or too many objects selected./n";
+    }
+	
+	else{
+		connectAttr ($sel[0] + ".ty") ($sel[1] + ".ty");
+		connectAttr ($sel[0] + ".tz") ($sel[1] + ".tz");
+		connectAttr ($sel[0] + ".rx") ($sel[1] + ".rx");
+		connectAttr ($sel[0] + ".rz") ($sel[1] + ".rz");
+		connectAttr ($sel[0] + ".s") ($sel[1] + ".s");
+		
+		string $mirrorNode = `shadingNode -n "mirrorObjNode" -asUtility multiplyDivide`;
+		setAttr ($mirrorNode + ".input2X") -1;
+		setAttr ($mirrorNode + ".input2Y") -1;
+		
+		connectAttr ($sel[0] + ".tx") ($mirrorNode + ".input1X");
+		connectAttr ($sel[0] + ".ry") ($mirrorNode + ".input1Y");
+		connectAttr ($mirrorNode + ".outputX") ($sel[1] + ".tx");
+		connectAttr ($mirrorNode + ".outputY") ($sel[1] + ".ry");
+		
+		select -r $sel[0];
+    }
+}
+
+global proc combinePoly(){
+
+	//Get Data
+	string $sel[] = `ls -sl`;
+	
+	//Combine Objects
+	string $new[] = `polyUnite -ch 0 $sel`;
+	
+	//Cleanup
+	polyMergeVertex  -d 0.001 -ch 0 $new[0];
+	makeIdentity -apply true -t 1 -r 1 -s 1 -n 0 $new[0];
+	delete -ch $new[0];
+	
+	string $newObj = `rename $new[0] $sel[0]`;
+	select -r $newObj;
+}
+
+global proc curveToPoly(float $cThickness){
+	
+	string $sel[] = `ls -sl`;
+	
+	for ($each in $sel){
+		string $offsetA[] = `offsetCurve  -ch 0 -rn false -cb 2 -st true -cl true -cr 0 -d $cThickness -tol 0.01 -sd 5 -ugn false $each`;
+		string $offsetB[] = `offsetCurve  -ch 0 -rn false -cb 2 -st true -cl true -cr 0 -d ($cThickness * -1) -tol 0.01 -sd 5 -ugn false $each`;
+		string $loft[] = `loft -ch 0 -u 1 -c 0 -ar 1 -d 3 -ss 1 -rn 0 -po 0 -rsn true $offsetA[0] $offsetB[0]`;
+		string $polyConvert[] = `nurbsToPoly -mnd 1  -ch 0 -f 3 -pt 1 -pc 200 -chr 0.9 -ft 0.01 -mel 0.001 -d 0.1 -ut 1 -un 3 -vt 1 -vn 3 -uch 0 -ucr 0 -cht 0.01 -es 0 -ntr 0 -mrt 1 -uss 1 $loft[0]`;
+		delete $offsetA $offsetB $loft;
+		rename $polyConvert[0] ("poly_" + $each);
+	}
+}
+
+global proc csMeshMenu(){
+	source generateChannelMenu.mel;
+
+	if(`window -q -ex csMeshMenu`){
+  		deleteUI csMeshMenu;
+	}
+	
+    window -t "Mesh Control"
+		csMeshMenu;
+	
+	columnLayout;
+		frameLayout -w 300 -l "";
+			columnLayout;
+				button -w 300 -bgc 0 1 0 -l "Mirror Instanced" -ann "Mirror Instanced" -c "mirrorInst()";
+				button -w 300 -bgc 0 1 0 -l "Mirror connect two objects" -ann "Mirror Connect two objects" -c "mirrorConnect()";
+				text -l "";
+				button -w 300 -bgc 1 1 0 -l "Combine Mesh Objects" -ann "Combine Mesh Objects" -c "combinePoly()";		
+				text -l "";
+				text -l "curve Thickness:";
+				floatField -w 300 -v 0.05 cThickness;
+				button -w 300 -bgc 1 0 1 -l "Convert curve to flat poly" -c "curveToPoly(`floatField -q -v cThickness`)";
+			setParent ..;
+		setParent..;
+	setParent..;
+	
+	showWindow csMeshMenu;
+	window -e -w 300 -h 110 csMeshMenu;
+}
+
+csMeshMenu();

@@ -1,0 +1,132 @@
+//  obj Sequesnce Exporter v 1.01
+//	Script written by Peter Chapman.
+//	Email: peter@chapmanstudios.co.uk
+//
+//	You are welcome to use and distribute this script, however,
+//	if you do so, send me a quick e-mail with your name and what
+//	you used it for.
+//
+//	Also feel free to give me feedback / request changes.
+//
+//	If you use the script for a commercial project,
+//	please contribute via PayPal using the email address
+//	above!
+
+global proc string[] expSel(string $frameRange, int $frameMin, int $frameMax, string $dir[], int $softEdge, int $meshSmooth, int $triangulate, string $prevSel[]){
+
+	string $sel[] = `ls -sl -dag -s`;
+	string $buffer[];
+	tokenize $dir[0] "." $buffer;
+	string $file = $buffer[0];
+
+	// Set frame range
+	if ($frameRange == "rb_fr1"){
+		$frameMin = `getAttr defaultRenderGlobals.startFrame`;
+		$frameMax = `getAttr defaultRenderGlobals.endFrame`;
+	}
+	else if ($frameRange == "rb_fr2"){
+		$frameMin = `playbackOptions -q -min`;
+		$frameMax = `playbackOptions -q -max`;
+	}
+	
+	// check errors
+	if ($frameMin > $frameMax) error "Frame range cannot run backwards.";
+	if ($sel[0] == "") $sel = $prevSel;
+	if ($sel[0] == "") error "No Object(s) Selected";
+	
+	// for each frame in range:
+	if (`playbackOptions -q -min` < $frameMin){
+		currentTime `playbackOptions -q -min`;
+		while (`currentTime -q `< $frameMin) playButtonStepForward;
+	}
+	else {
+		currentTime ($frameMin - 10);
+		while (`currentTime -q` < $frameMin) playButtonStepForward;
+	}
+	
+	int $i;
+	while (`currentTime -q` != $frameMax){
+		
+		// duplicate geometry
+		string $dup[] = `duplicate $sel`;
+		for ($each in $dup){
+			if ($softEdge) polySoftEdge -a 180 -ch 0 $each;
+			if ($meshSmooth) polySmooth  -ch 0 $each;
+			if ($triangulate) polyTriangulate  -ch 0 $each;
+		}
+		select $dup;
+		// export geometry as obj
+		file -f -typ "OBJexport" -pr -es ($file + "_" + `currentTime -q`);
+		// delete exported geometry
+		delete $dup;
+		
+		playButtonStepForward;
+		
+		// progress bar
+		++$i;
+		int $interrupt = progWindow($i, ($frameMax - $frameMin));
+		if ($interrupt == 1) break;
+	}
+	
+	return $sel;
+
+}
+
+
+global proc csObjSeqMenu(){
+
+	if ( `window -exists csObjSeqMenu` ) {
+		 deleteUI csObjSeqMenu;
+	}
+	
+	source "cs/csProgBar.mel";
+	string $prevSel[];
+	
+	window -s 0 -t "obj Sequence Export" csObjSeqMenu;
+		
+	columnLayout;
+		frameLayout -w 300 -l "Frame Range";
+			columnLayout;
+				radioCollection rc_frameRange;
+				radioButton -l "Render Settings"
+					-onc "intField -e -v `getAttr defaultRenderGlobals.startFrame` if_minFrame; intField -e -v `getAttr defaultRenderGlobals.endFrame` if_maxFrame;"
+					-sl rb_fr1;
+				radioButton -l "Time Slider"
+					-onc "intField -e -v `playbackOptions -q -min` if_minFrame; intField -e -v `playbackOptions -q -max` if_maxFrame;"
+					rb_fr2;
+				radioButton -l "Custom Range"
+					-onc "intField -e -en 1 if_minFrame; intField -e -en 1 if_maxFrame; text -e -en 1 tx_minFrame; text -e -en 1 tx_maxFrame;"
+					-ofc "intField -e -en 0 if_minFrame; intField -e -en 0 if_maxFrame; text -e -en 0 tx_minFrame; text -e -en 0 tx_maxFrame;"
+					rb_fr3;
+				rowLayout -nc 4 -cw4 48 48 48 48;
+					text -l "Start:"-en 0 tx_minFrame;
+					intField  -w 48 -en 0 -v `getAttr defaultRenderGlobals.startFrame` if_minFrame;
+					text -l "End:" -en 0 tx_maxFrame;
+					intField -w 48 -en 0 -v `getAttr defaultRenderGlobals.endFrame` if_maxFrame;
+				setParent ..;
+			setParent ..;
+		setParent ..;
+		frameLayout -w 300 -l "Options";
+			columnLayout;
+				checkBox -l "Apply soft edges" -ann "Makes all edges soft during the export" cb_softEdge;
+				checkBox -l "Apply mesh-smooth" -ann "Applies a mesh smooth during the export" cb_meshSmooth;
+				checkBox -l "Triangulate" -ann "Converts mesh to triangles" cb_triangulate;
+			setParent ..;
+		setParent ..;
+		frameLayout -w 300 -l "Export";
+			columnLayout;
+				rowLayout -nc 2 -cw2 48 248;
+					button -bgc 1 1 0 -w 48 -l "Save As:" -c "string $dir[] = `fileDialog2 -ff \"obj file (*.obj)\"`; text -e -l $dir[0] tx_path; button -e -en 1 btn_expSel";
+					text -l "" tx_path;
+				setParent ..;
+				button -bgc 0 1 0 -w 300 -en 0 -l "Export Selection" -c "string $prevSel[] = expSel(`radioCollection -q -sl rc_frameRange`, `intField -q -v if_minFrame`, `intField -q -v if_maxFrame`, $dir, `checkBox -q -v cb_softEdge`, `checkBox -q -v cb_meshSmooth`, `checkBox -q -v cb_triangulate`, $prevSel)" btn_expSel;
+			setParent ..;
+		setParent ..;
+	setParent ..;
+
+	window -e -w 300 -h 50 csObjSeqMenu;
+		 
+	showWindow csObjSeqMenu;
+}
+
+csObjSeqMenu();

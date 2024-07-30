@@ -1,0 +1,539 @@
+//  Character Template Menu v 1.01
+//	Script written by Peter Chapman.
+//	Email: peter@chapmanstudios.co.uk
+//
+//	You are welcome to use and distribute this script, however,
+//	if you do so, send me a quick e-mail with your name and what
+//	you used it for.
+//
+//	Also feel free to give me feedback / request changes.
+//
+//	If you end up using the script for a commercial project,
+//	feel free to contribute via PayPal using the email address
+//	above!
+
+global proc loadScript(string $script){
+	string $command = ("source \"" + $script + ".mel\";");
+	eval $command;
+}
+
+global proc getCodeSel(){
+	string $sel[] = `ls -sl`;
+	
+	string $code;
+	
+	for ($each in $sel){
+			$code = ("catch (`select -add ($nameSpace + \""+$each+"\")`);\n")+$code;
+	}
+	
+	$code = "select -cl;\n"+$code;
+	
+	textField -e -tx $code tf_string;
+}
+
+global proc getCodePose(){
+	string $sel[] = `ls -sl`;
+	
+	string $code;
+	
+	for ($each in $sel){
+		string $keyableAttrs[] = `listAttr -r -w -k -u -v -m -s $each`;
+		if ( !`size($keyableAttrs)`){
+			continue;	
+		} 
+		for ($attr in $keyableAttrs)
+		{
+			string $value = string ( `getAttr ($each+"."+$attr)` );
+			$code = ("catch (`setAttr ($nameSpace + \""+$each +"."+$attr+"\") "+$value+"`);\n")+$code;
+		}
+	}
+	
+	textField -e -tx $code tf_string;
+}
+
+global proc setControls(int $v, int $cl){
+	frameLayout -e -cl $cl -en $v fl_body;
+	frameLayout -e -cl $cl -en $v fl_face;
+	frameLayout -e -cl $cl -en $v fl_other;
+	frameLayout -e -cl $cl -en $v fl_poses;
+	frameLayout -e -cl $cl -en $v fl_admin;
+	
+	button -e -vis $v btn_allBody;
+	button -e -vis $v btn_hair;
+	button -e -vis $v btn_head;
+	button -e -vis $v btn_rtH_IkFk;
+	button -e -vis $v btn_lfH_IkFk;
+	button -e -vis $v btn_rtArm;
+	button -e -vis $v btn_lfArm;
+	button -e -vis $v btn_neck;
+	button -e -vis $v btn_rtArmUp;
+	button -e -vis $v btn_lfArmUp;
+	button -e -vis $v btn_rtCl;
+	button -e -vis $v btn_lfCl;
+	button -e -vis $v btn_spine;
+	button -e -vis $v btn_topSpine;
+	button -e -vis $v btn_midSpine;
+	button -e -vis $v btn_lowSpine;
+	button -e -vis $v btn_hips;
+	button -e -vis $v btn_rtArmPV;
+	button -e -vis $v btn_lfArmPV;
+	button -e -vis $v btn_rtElb;
+	button -e -vis $v btn_lfElb;
+	button -e -vis $v btn_rtHand;
+	button -e -vis $v btn_lfHand;
+	button -e -vis $v btn_cog;
+	button -e -vis $v btn_rtLeg;
+	button -e -vis $v btn_lfLeg;
+	button -e -vis $v btn_rtF_IkFk;
+	button -e -vis $v btn_lfF_IkFk;
+	button -e -vis $v btn_rtLegUp;
+	button -e -vis $v btn_lfLegUp;
+	button -e -vis $v btn_rtLegPV;
+	button -e -vis $v btn_lfLegPV;
+	button -e -vis $v btn_rtKnee;
+	button -e -vis $v btn_lfKnee;
+	button -e -vis $v btn_rtFoot;
+	button -e -vis $v btn_lfFoot;
+	button -e -vis $v btn_root;
+	
+	button -e -vis $v btn_allFace;
+	button -e -vis $v btn_rtBrOut;
+	button -e -vis $v btn_rtBrMid;
+	button -e -vis $v btn_rtBrIn;
+	button -e -vis $v btn_rtEyeLidUp;
+	button -e -vis $v btn_rtEye;
+	button -e -vis $v btn_rtPupil;
+	button -e -vis $v btn_rtEyeLidDo;
+	button -e -vis $v btn_rtLipUp;
+	button -e -vis $v btn_rtSmile;
+	button -e -vis $v btn_rtCheek;
+	button -e -vis $v btn_rtLipDo;
+	button -e -vis $v btn_lfBrOut;
+	button -e -vis $v btn_lfBrMid;
+	button -e -vis $v btn_lfBrIn;
+	button -e -vis $v btn_lfEyeLidUp;
+	button -e -vis $v btn_lfEye;
+	button -e -vis $v btn_lfPupil;
+	button -e -vis $v btn_lfEyeLidDo;
+	button -e -vis $v btn_lfLipUp;
+	button -e -vis $v btn_lfSmile;
+	button -e -vis $v btn_lfCheek;
+	button -e -vis $v btn_lfLipDo;
+	button -e -vis $v btn_mouthOpen;
+	button -e -vis $v btn_mouthDir;
+
+	button -e -vis $v btn_dynamics;
+
+	button -e -vis $v btn_pose_bind;
+	button -e -vis $v btn_pose_runA;
+	button -e -vis $v btn_pose_runB;
+}
+
+global proc charList(){
+	string $mayaDir = `internalVar -uad`;
+	string $dataSets[] = `getFileList -fld ($mayaDir + "scripts/dataSet/") -fs "*.mel"`;
+	setParent fl_data;
+	if (`gridLayout -q -exists gr_data` == 1){
+		deleteUI gr_data;
+	}
+	gridLayout -nc 3 -cw 120 gr_data;
+		button -bgc 1 1 1 -w 120 -l "Refresh List" -c "charList()" btnRefreshList;
+		for ($each in $dataSets){
+			string $buffer[];
+			tokenize $each "." $buffer;
+			string $command = ("loadChar(\"" + $buffer[0] + "\")");
+			button
+				-w 120
+				-l $buffer[0]
+				-c $command
+				("btn_" + $buffer[0]);
+		}
+}
+
+global proc loadChar(string $name){
+	setControls(0, 1);
+	string $btn = ("btn_" + `text -q -l charField`);
+	if (`button -q -exists $btn` == 1){
+		button -e -bgc 0.4 0.4 0.4 ("btn_" + `text -q -l charField`);
+	}
+	loadScript("dataSet/" + $name);
+	button -e -bgc 0 1 0 ("btn_" + $name);
+	text -e -l $name charField;
+}
+
+global proc switch_rtH_IkFk(){
+
+	if (`button -q -vis btn_rtArmUp`){
+		button -e -vis 1 btn_rtArmPV;
+		button -e -vis 0 btn_rtCl;
+		button -e -vis 0 btn_rtArmUp;
+		button -e -vis 0 btn_rtElb;
+		button -e -c "getSel_rtHandIK($nameSpace)" btn_rtHand;
+	}
+	else{
+		button -e -vis 0 btn_rtArmPV;
+		button -e -vis 1 btn_rtCl;
+		button -e -vis 1 btn_rtArmUp;
+		button -e -vis 1 btn_rtElb;
+		button -e -c "getSel_rtHand($nameSpace)" btn_rtHand;
+	}
+}
+
+global proc switch_lfH_IkFk(){
+
+	if (`button -q -vis btn_lfArmUp`){
+		button -e -vis 1 btn_lfArmPV;
+		button -e -vis 0 btn_lfCl;
+		button -e -vis 0 btn_lfArmUp;
+		button -e -vis 0 btn_lfElb;
+		button -e -c "getSel_lfHandIK($nameSpace)" btn_lfHand;
+	}
+	else{
+		button -e -vis 0 btn_lfArmPV;
+		button -e -vis 1 btn_lfCl;
+		button -e -vis 1 btn_lfArmUp;
+		button -e -vis 1 btn_lfElb;
+		button -e -c "getSel_lfHand($nameSpace)" btn_lfHand;
+	}
+}
+
+global proc switch_rtF_IkFk(){
+
+	if (`button -q -vis btn_rtLegUp`){
+		button -e -vis 0 btn_rtLegUp;
+		button -e -vis 0 btn_rtKnee;
+		button -e -vis 1 btn_rtLegPV;
+		button -e -c "getSel_rtFoot($nameSpace)" btn_rtFoot;
+	}
+	else{
+		button -e -vis 1 btn_rtLegUp;
+		button -e -vis 1 btn_rtKnee;
+		button -e -vis 0 btn_rtLegPV;
+		button -e -c "getSel_rtFootFK($nameSpace)" btn_rtFoot;
+	}
+}
+
+global proc switch_lfF_IkFk(){
+
+	if (`button -q -vis btn_lfLegUp`){
+		button -e -vis 0 btn_lfLegUp;
+		button -e -vis 0 btn_lfKnee;
+		button -e -vis 1 btn_lfLegPV;
+		button -e -c "getSel_lfFoot($nameSpace)" btn_lfFoot;
+	}
+	else{
+		button -e -vis 1 btn_lfLegUp;
+		button -e -vis 1 btn_lfKnee;
+		button -e -vis 0 btn_lfLegPV;
+		button -e -c "getSel_lfFootFK($nameSpace)" btn_lfFoot;
+	}
+}
+
+global proc string getNewRef(){
+	string $sel[] = `ls -sl`;
+	string $ref;
+	string $buffer[];
+	tokenize $sel[0] ":" $buffer;
+	
+	for ($i = 0; $i < (size($buffer)-1); $i++){
+		$ref = ($ref + $buffer[$i] + ":");
+	}
+	
+	print ("Reference set to: <" + $ref + ">\n");
+	text -e -l $ref nameSpace;
+	return $ref;
+}
+
+global proc charTemplateMenu(){
+
+	if (`window -exists charTemplate_menu`) {
+		deleteUI charTemplate_menu;
+	}
+	
+	string $nameSpace;
+	
+	window -t "Character Template Menu" charTemplate_menu;
+	
+	scrollLayout -hst 0 sl_main;
+		frameLayout -w 370 -l "Data Set:" -cll 1 fl_data;
+			rowLayout -nc 4 -cw4 80 100 80 90;
+				text -l "nameSpace:";
+				text -l "" nameSpace;
+				text -l "character:";
+				text -l "" charField;
+			setParent ..;
+			button -bgc 1 1 0 -w 100 -l "Get Selected Reference" -c "$nameSpace = getNewRef()";
+		setParent ..;
+		frameLayout -en 0 -cl 1 -w 370 -l "Face Controls:" -cll 1 fl_face;
+			rowLayout -nc 3 -cw3 100 160 100;
+				text -l "";
+				button -bgc 1 1 1 -vis 0 -w 160 -l "select All" -c "getSel_allFace($nameSpace)" btn_allFace;
+				text -l "";
+			setParent ..;
+			rowLayout -nc 3 -cw3 150 60 150;
+				rowLayout -nc 3 -cw3 50 50 50;
+					button -bgc 1 0 0 -vis 0 -w 50 -l "rtBrOut" -c "getSel_rtBrOut($nameSpace)" btn_rtBrOut;
+					button -bgc 1 0 0 -vis 0 -w 50 -l "rtBrMid" -c "getSel_rtBrMid($nameSpace)" btn_rtBrMid;
+					button -bgc 1 0 0 -vis 0 -w 50 -l "rtBrIn" -c "getSel_rtBrIn($nameSpace)" btn_rtBrIn;
+				setParent ..;
+				text -l "";
+				rowLayout -nc 3 -cw3 50 50 50;
+					button -bgc 1 0 0 -vis 0 -w 50 -l "lfBrIn" -c "getSel_lfBrIn($nameSpace)" btn_lfBrIn;
+					button -bgc 1 0 0 -vis 0 -w 50 -l "lfBrMid" -c "getSel_lfBrMid($nameSpace)" btn_lfBrMid;
+					button -bgc 1 0 0 -vis 0 -w 50 -l "lfBrOut" -c "getSel_lfBrOut($nameSpace)" btn_lfBrOut;
+				setParent ..;
+			setParent ..;
+			rowLayout -nc 3 -cw3 170 20 170;
+				rowLayout -nc 3 -cw3 45	80 45;
+					text -l "";
+					button -bgc 0 0.5 1 -vis 0 -w 80 -l "rtEyeLidUp" -c "getSel_rtEyeLidUp($nameSpace)" btn_rtEyeLidUp;
+					text -l "";
+				setParent ..;
+				text -l "";
+				rowLayout -nc 3 -cw3 45 80 45;
+					text -l "";
+					button -bgc 0 0.5 1 -vis 0 -w 80 -l "lfEyeLidUp" -c "getSel_lfEyeLidUp($nameSpace)" btn_lfEyeLidUp;
+					text -l "";
+				setParent ..;
+			setParent ..;
+			rowLayout -nc 3 -cw3 170 20 170;
+				rowLayout -nc 3 -cw3 55	60 55;
+					text -l "";
+					button -bgc 0 0.5 1 -vis 0 -w 60 -h 50 -l "rtEye" -c "getSel_rtEye($nameSpace)" btn_rtEye;
+					text -l "";
+				setParent ..;
+				text -l "";
+				rowLayout -nc 3 -cw3 55 60 55;
+					text -l "";
+					button -bgc 0 0.5 1 -vis 0 -w 60 -h 50 -l "lfEye" -c "getSel_lfEye($nameSpace)" btn_lfEye;
+					text -l "";
+				setParent ..;
+			setParent ..;
+			rowLayout -nc 3 -cw3 170 20 170;
+				rowLayout -nc 3 -cw3 60	50 60;
+					text -l "";
+					button -bgc 0 0 1 -vis 0 -w 50 -h 25 -l "rtPupil" -c "getSel_rtPupil($nameSpace)" btn_rtPupil;
+					text -l "";
+				setParent ..;
+				text -l "";
+				rowLayout -nc 3 -cw3 60 50 60;
+					text -l "";
+					button -bgc 0 0 1 -vis 0 -w 50 -h 25 -l "lfPupil" -c "getSel_lfPupil($nameSpace)" btn_lfPupil;
+					text -l "";
+				setParent ..;
+			setParent ..;
+			rowLayout -nc 3 -cw3 170 20 170;
+				rowLayout -nc 3 -cw3 45	80 45;
+					text -l "";
+					button -bgc 0 0.5 1 -vis 0 -w 80 -l "rtEyeLidDo" -c "getSel_rtEyeLidDo($nameSpace)" btn_rtEyeLidDo;
+					text -l "";
+				setParent ..;
+				text -l "";
+				rowLayout -nc 3 -cw3 45 80 45;
+					text -l "";
+					button -bgc 0 0.5 1 -vis 0 -w 80 -l "lfEyeLidDo" -c "getSel_lfEyeLidDo($nameSpace)" btn_lfEyeLidDo;
+					text -l "";
+				setParent ..;
+			setParent ..;
+			text -l "";
+			rowLayout -nc 3 -cw3 150 60 150;
+				rowLayout -nc 3 -cw3 50	50 50;
+					text -l "";
+					button -bgc 1 1 0 -vis 0 -w 50 -l "rtSmile" -c "getSel_rtSmile($nameSpace)" btn_rtSmile;
+					button -bgc 1 1 0 -vis 0 -w 50 -l "rtLipUp" -c "getSel_rtLipUp($nameSpace)" btn_rtLipUp;
+				setParent ..;
+				text -l "";
+				rowLayout -nc 3 -cw3 50	50 50;
+					button -bgc 1 1 0 -vis 0 -w 50 -l "lfLipUp" -c "getSel_lfLipUp($nameSpace)" btn_lfLipUp;
+					button -bgc 1 1 0 -vis 0 -w 50 -l "lfSmile" -c "getSel_lfSmile($nameSpace)" btn_lfSmile;
+					text -l "";
+				setParent ..;
+			setParent ..;
+			rowLayout -nc 3 -cw3 120 120 120;
+				rowLayout -nc 3 -cw3 20	50 50;
+					text -l "";
+					button -bgc 1 1 0 -vis 0 -w 50 -h 30 -l "rtCheek" -c "getSel_rtCheek($nameSpace)" btn_rtCheek;
+					text -l "";
+				setParent ..;
+				button -bgc 0 1 0 -vis 0 -w 120 -h 40 -l "mouthOpen" -c "getSel_mouthOpen($nameSpace)" btn_mouthOpen;
+				rowLayout -nc 3 -cw3 50 50 20;
+					text -l "";
+					button -bgc 1 1 0 -vis 0 -w 50 -h 30 -l "lfCheek" -c "getSel_lfCheek($nameSpace)" btn_lfCheek;
+					text -l "";
+				setParent ..;
+			setParent ..;
+			rowLayout -nc 3 -cw3 125 110 125;
+				text -l "";
+				button -bgc 0 1 0 -vis 0 -w 110 -l "< mouthDir >" -c "getSel_mouthDir($nameSpace)" btn_mouthDir;
+				text -l "";
+			setParent ..;
+			rowLayout -nc 3 -cw3 150 60 150;
+				rowLayout -nc 3 -cw3 50	50 50;
+					text -l "";
+					text -l "";
+					button -bgc 1 1 0 -vis 0 -w 50 -l "rtLipDo" -c "getSel_rtLipDo($nameSpace)" btn_rtLipDo;
+				setParent ..;
+				text -l "";
+				rowLayout -nc 3 -cw3 50	50 50;
+					button -bgc 1 1 0 -vis 0 -w 50 -l "lfLipDo" -c "getSel_lfLipDo($nameSpace)" btn_lfLipDo;
+					text -l "";
+					text -l "";
+				setParent ..;
+			setParent ..;
+		setParent ..;
+		frameLayout -en 0 -cl 1 -w 370 -l "Body Controls:" -cll 1 fl_body;
+			rowLayout -nc 3 -cw3 100 160 100;
+				text -l "";
+				button -bgc 1 1 1 -vis 0 -w 160 -l "select All" -c "getSel_allBody($nameSpace)" btn_allBody;
+				text -l "";
+			setParent ..;
+			text -l "";
+			rowLayout -nc 3 -cw3 160 80 160;
+				text -l "";
+				button -bgc 1 1 0 -vis 0 -w 80 -h 25 -l "hair" -c "getSel_hair($nameSpace)" btn_hair;
+				text -l "";
+			setParent ..;
+			rowLayout -nc 3 -cw3 150 60 150;
+				text -l "";
+				button -bgc 1 1 0 -vis 0 -w 60 -h 60 -l "head" -c "getSel_head($nameSpace)" btn_head;
+				text -l "";
+			setParent ..;
+			rowLayout -nc 5 -cw5 45 110 50 110 45;
+				button -bgc 1 0.5 0.5 -vis 0 -w 45 -h 40 -l "rtArm" -c "getSel_rtArm($nameSpace)" btn_rtArm;
+				text -l "";
+				button -bgc 1 1 0 -vis 0 -w 50 -h 20 -l "neck" -c "getSel_neck($nameSpace)" btn_neck;
+				text -l "";
+				button -bgc 0.5 0.5 1 -vis 0 -w 45 -h 40 -l "lfArm" -c "getSel_lfArm($nameSpace)" btn_lfArm;
+			setParent ..;
+			rowLayout -nc 3 -cw3 155 50 155;
+				rowLayout -nc 3 -cw3 75 50 30;
+					text -w 75 -l "";
+					button -bgc 1 0 0 -vis 0 -w 50 -h 40 -l "rtArmUp" -c "getSel_rtArmUp($nameSpace)" btn_rtArmUp;
+					button -bgc 1 0.5 0 -vis 0 -w 30 -h 50 -l "rtCl" -c "getSel_rtCl($nameSpace)" btn_rtCl;
+				setParent ..;
+				button -bgc 1 1 0 -vis 0 -w 50 -h 30 -l "topSpine" -c "getSel_topSpine($nameSpace)" btn_topSpine;
+				rowLayout -nc 3 -cw3 30 50 75;
+					button -bgc 0 0.8 1 -vis 0 -w 30 -h 50 -l "lfCl" -c "getSel_lfCl($nameSpace)" btn_lfCl;
+					button -bgc 0 0.5 1 -vis 0 -w 50 -h 40 -l "lfArmUp" -c "getSel_lfArmUp($nameSpace)" btn_lfArmUp;
+					text -w 75 -l "";
+				setParent ..;
+			setParent ..;
+			rowLayout -nc 3 -cw3 155 50 155;
+				rowLayout -nc 3 -cw3 35 45 75;
+					button -bgc 1 1 0.5 -vis 0 -w 30 -h 40 -l "spine" -c "getSel_spine($nameSpace)" btn_spine;
+					button -bgc 1 0.5 0 -vis 0 -w 40 -h 25 -l "rtArPV" -c "getSel_rtArmPV($nameSpace)" btn_rtArmPV;
+					button -bgc 1 0 0 -vis 0 -w 40 -h 30 -l "rtElb" -c "getSel_rtElb($nameSpace)" btn_rtElb;
+				setParent ..;
+				button -bgc 1 1 0 -vis 0 -w 50 -h 30 -l "midSpine" -c "getSel_midSpine($nameSpace)" btn_midSpine;
+				rowLayout -nc 3 -cw3 35 40 80;
+					text -w 35 -l "";
+					button -bgc 0 0.5 1 -vis 0 -w 40 -h 30 -l "lfElb" -c "getSel_lfElb($nameSpace)" btn_lfElb;
+					button -bgc 0 0.8 1 -vis 0 -w 40 -h 25 -l "lfArPV" -c "getSel_lfArmPV($nameSpace)" btn_lfArmPV;
+				setParent ..;
+			setParent ..;
+			rowLayout -nc 3 -cw3 155 50 155;
+				rowLayout -nc 3 -cw3 80 40 35;
+					button -bgc 1 1 1 -vis 0 -w 40 -h 20 -l "IkFk" -c "switch_rtH_IkFk()" btn_rtH_IkFk;
+					button -bgc 1 0 0 -vis 0 -w 40 -h 30 -l "rtHand" -c "getSel_rtHand($nameSpace)" btn_rtHand;
+					text -w 35 -l "";
+				setParent ..;
+				button -bgc 1 1 0 -vis 0 -w 50 -h 30 -l "lowSpine" -c "getSel_lowSpine($nameSpace)" btn_lowSpine;
+				rowLayout -nc 3 -cw3 35 80 40;
+					text -w 35 -l "";
+					button -bgc 0 0.5 1 -vis 0 -w 40 -h 30 -l "lfHand" -c "getSel_lfHand($nameSpace)" btn_lfHand;
+					button -bgc 1 1 1 -vis 0 -w 40 -h 20 -l "IkFk" -c "switch_lfH_IkFk()" btn_lfH_IkFk;
+				setParent ..;
+			setParent ..;
+			rowLayout -nc 3 -cw3 140 80 140;
+				text -l "";
+				button -bgc 1 1 0 -vis 0 -w 80 -h 40 -l "hips" -c "getSel_hips($nameSpace)" btn_hips;
+				rowLayout -nc 2 -cw2 60 80;
+					text -l "";
+					button -bgc 1 1 1 -vis 0 -w 40 -l "cog" -c "getSel_cog($nameSpace)" btn_cog;
+				setParent ..;
+			setParent ..;
+			rowLayout -nc 3 -cw3 160 40 160;
+				rowLayout -nc 3 -cw3 40 70 50;
+					button -bgc 1 0.5 0.5 -vis 0 -w 40 -h 40 -l "rtLeg" -c "getSel_rtLeg($nameSpace)" btn_rtLeg;
+					text -w 70 -l "";
+					button -bgc 1 0 0 -vis 0 -w 50 -h 40 -l "rtLegUp" -c "getSel_rtLegUp($nameSpace)" btn_rtLegUp;
+				setParent ..;
+				text -w 40 -l "";
+				rowLayout -nc 3 -cw3 50 70 40;
+					button -bgc 0 0.5 1 -vis 0 -w 50 -h 40 -l "lfLegUp" -c "getSel_lfLegUp($nameSpace)" btn_lfLegUp;
+					text -w 70 -l "";
+					button -bgc 0.5 0.5 1 -vis 0 -w 40 -h 40 -l "lfLeg" -c "getSel_lfLeg($nameSpace)" btn_lfLeg;
+				setParent ..;
+			setParent ..;
+			rowLayout -nc 3 -cw3 160 40 160;
+				rowLayout -nc 3 -cw3 60 50 50;
+					text -w 60 -l "";
+					button -bgc 1 0.5 0 -vis 0 -w 50 -h 25 -l "rtLegPV" -c "getSel_rtLegPV($nameSpace)" btn_rtLegPV;
+					button -bgc 1 0 0 -vis 0 -w 50 -h 40 -l "rtKnee" -c "getSel_rtKnee($nameSpace)" btn_rtKnee;
+				setParent ..;
+				text -w 40 -l "";
+				rowLayout -nc 3 -cw3 50 50 60;
+					button -bgc 0 0.5 1 -vis 0 -w 50 -h 40 -l "lfKnee" -c "getSel_lfKnee($nameSpace)" btn_lfKnee;
+					button -bgc 0 0.8 1 -vis 0 -w 50 -h 25 -l "lfLegPV" -c "getSel_lfLegPV($nameSpace)" btn_lfLegPV;
+					text -w 60 -l "";
+				setParent ..;
+			setParent ..;
+			rowLayout -nc 3 -cw3 160 40 160;
+				rowLayout -nc 3 -cw3 40 70 50;
+					button -bgc 1 1 1 -vis 0 -w 40 -h 20 -l "IkFk" -c "switch_rtF_IkFk()" btn_rtF_IkFk;
+					text -l "";
+					button -bgc 1 0 0 -vis 0 -w 50 -h 40 -l "rtFoot" -c "getSel_rtFoot($nameSpace)" btn_rtFoot;
+				setParent ..;
+				text -w 40 -l "";
+				rowLayout -nc 3 -cw3 50 70 40;
+					button -bgc 0 0.5 1 -vis 0 -w 50 -h 40 -l "lfFoot" -c "getSel_lfFoot($nameSpace)" btn_lfFoot;
+					text -l "";
+					button -bgc 1 1 1 -vis 0 -w 40 -h 20 -l "IkFk" -c "switch_lfF_IkFk()" btn_lfF_IkFk;
+				setParent ..;
+			setParent ..;
+			rowLayout -nc 3 -cw3 80 200 80;
+				text -l "";
+				button -bgc 0 1 0 -vis 0 -w 200 -h 30 -l "root" -c "getSel_root($nameSpace)" btn_root;
+				text -l "";
+			setParent ..;
+		setParent ..;
+		frameLayout -en 0 -cl 1 -w 370 -label "Other Controls:" -cll 1 fl_other;
+			rowLayout -nc 3 -cw3 120 120 120;
+				text -l "";
+				button -bgc 0 1 0 -vis 0 -w 120 -l "dynamics" -c "getSel_dynamics($nameSpace)" btn_dynamics;
+				text -l "";
+			setParent ..;
+		setParent ..;
+		frameLayout -en 0 -cl 1 -w 370 -label "Poses:" -cll 1 fl_poses;
+			gridLayout -nc 3 -cw 120 gl_poses;
+				button -vis 0 -bgc 1 0 1 -w 72 -l "bind" -c "pose_bind($nameSpace)" btn_pose_bind;
+				button -vis 0 -bgc 1 0 1 -w 72 -l "runA" -c "pose_runA($nameSpace)" btn_pose_runA;
+				button -vis 0 -bgc 1 0 1 -w 72 -l "runB" -c "pose_runB($nameSpace)" btn_pose_runB;
+			setParent ..;
+		setParent ..;
+		frameLayout -en 0 -cl 1 -w 370 -l "Admin" -cll 1 fl_admin;
+			rowLayout -nc 2 -cw2 180 190;
+				button -bgc 1 1 0 -w 180 -h 30 -l "Get Sel Code" -c "getCodeSel()";
+				button -bgc 0 1 1 -w 180 -h 30 -l "Get Pose Code" -c "getCodePose()";
+			setParent ..;
+			textField -w 360 -h 40 tf_string;
+			text -l "";
+			button -bgc 1 1 1 -w 360 -l "Show All Controls" -c "setControls(1,0)";
+		setParent ..;
+		frameLayout -en 0 -cl 1 -w 370 -l "Custom Buttons" -cll 1 fl_custom;
+		setParent ..;
+	setParent ..;
+
+	confirmDialog
+		-icn "warning"
+		-t "WARNING"
+		-m "ALWAYS SAVE YOUR SCENE BEFORE RUNNING THIS SCRIPT"
+		-b "OK";
+	
+	window -e -w 395 -h 700 charTemplate_menu;
+	
+	showWindow charTemplate_menu;
+	charList();
+}
+
+charTemplateMenu;

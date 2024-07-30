@@ -1,0 +1,216 @@
+//  Dynamics v 1.01
+//	Script written by Peter Chapman.
+//	Email: peter@chapmanstudios.co.uk
+//
+//	You are welcome to use and distribute this script, however,
+//	if you do so, send me a quick e-mail with your name and what
+//	you used it for.
+//
+//	Also feel free to give me feedback / request changes.
+//
+//	If you use the script for a commercial project,
+//	please contribute via PayPal using the email address
+//	above!
+
+global proc string[] reverseArray( string $array[] ){
+string $reversedArray[];
+int $arraySize = `size $array`;
+
+for( $n = 0; $n < $arraySize; $n++ ) $reversedArray[( $arraySize - 1 - $n )] = $array[$n];
+return $reversedArray;
+}
+
+global proc makeJointChainDynamicPart(){
+
+	string $sel[] = `ls -sl -et "joint" -dag`;
+
+	if (size($sel) < 2) confirmDialog -t "Warning" -m "Not enough joints selected" -b "Ok" -db "Ok";
+
+	else{
+		// get location of joints
+		string $curveCode;
+		int $i = 0;
+		for ($each in $sel){
+			float $v[] = `xform -q -ws -t $sel[$i]`;
+			float $v2[] = `xform -q -rp $sel[$i]`;
+			$curveCode = $curveCode + "-p " + ($v[0] + $v2[0]) + " " + ($v[1] + $v2[1]) + " " + ($v[2] + $v2[2]);
+
+			$i++;
+		}
+
+		// create spline @ joint location
+
+		string $curve = eval ("curve -d 1 " + $curveCode);
+
+		// spline ik
+		
+		select -r $sel[0] $sel[(size($sel)-1)] $curve;
+		string $ik[] = `ikHandle -sol ikSplineSolver -ccv false -pcv false`;
+
+		// make curve soft
+
+		select $curve;
+		dynCreateSoft 0 1 1 1 0;
+		string $target = "copyOf" + $curve;
+		string $t[] = `listRelatives $curve`;
+		string $particles = $t[1];
+
+		for ($i = 0; $i < size($sel); $i++){
+			particle -e -or $i -at goalPP -fv (1 - ($i * 0.1)) $particles;
+		}
+
+		// set particle weight
+		// organise
+
+	}
+}
+
+
+global proc string[] makeJointChainDynamicHair(){
+
+	string $sel[] = `ls -sl -et "joint" -dag`;
+	
+	if (size($sel) < 2) warning "Not enough joints selected";
+	else {
+		// get location of joints
+		string $curveCode;
+		int $i = 0;
+		for ($each in $sel){
+			float $v[] = `xform -q -ws -t $sel[$i]`;
+			float $v2[] = `xform -q -rp $sel[$i]`;
+			$curveCode = $curveCode + "-p " + ($v[0] + $v2[0]) + " " + ($v[1] + $v2[1]) + " " + ($v[2] + $v2[2]);
+			$i++;
+		}
+
+		// create spline @ joint location
+
+		string $curve = eval ("curve -d 1 " + $curveCode);
+
+		// make curve soft
+
+		select $curve;
+		makeCurvesDynamicHairs 1 0 1;
+		
+		button -e -en 1 btn_ikHair;
+		return $sel;
+	}
+}
+
+global proc buildIKforHair(string $joints[]){
+
+	string $sel[] = `ls -sl`;
+	
+	if (size($sel) > 1) warning  "Too many objects selected";
+	else if (size($joints) < 2) warning "Not enough joints defined";
+	else {
+		select -r $joints[0] $joints[(size($joints)-1)] $sel[0];
+		string $ik[] = `ikHandle -sol ikSplineSolver -ccv false -pcv false`;
+	}
+	button -e -en 0 btn_ikHair;
+}
+
+global proc csDynTransformNode(string $name, int $r){
+
+	
+	string $sel[] = `ls -sl`;
+	if (size($sel) != 1) warning "Not enough or too many objects selected";
+	else{
+		select -cl;
+		string $jtA = `joint -n ("mb_" + $name + "dynJt0") -p 0 0 0`;
+		string $jtB = `joint -n ("mb_" + $name + "dynJt1") -p 0 1 0`;
+		select -cl;
+		string $jtC = `joint -n ("mb_" + $name + "dynJt3") -p 0 0 0`;
+		string $jtD = `joint -n ("mb_" + $name + "dynJt4") -p 0 0 1`;
+		string $dynC = `curve -n ("sp_" + $name + "dynCurveA") -d 1 -p 0 0 0 -p 0 1 0 -k 0 -k 1`;
+		dynCreateSoft 0 1 1 1 0;
+		string $p[] = `listRelatives $dynC`;
+		particle -e -or 1 -at goalPP -fv 0.75 ($p[1] + ".pt[1]");
+		string $copy = ("copyOf" + $dynC);
+		string $dynC2 = `curve -n ("sp_" + $name + "dynCurveB") -d 1 -p 0 0 0 -p 0 0 1 -k 0 -k 1`;
+		dynCreateSoft 0 1 1 1 0;
+		string $p2[] = `listRelatives $dynC2`;
+		particle -e -or 1 -at goalPP -fv 0.75 ($p2[1] + ".pt[1]");
+		string $copy2 = ("copyOf" + $dynC2);
+		select -r $jtA $jtB $dynC;
+		string $ik[] = `ikHandle -n ("ik_" + $name + "dynTranA") -sol ikSplineSolver -ccv false -pcv false`;
+		select -r $jtC $jtD $dynC2;
+		string $ik2[] = `ikHandle -n ("ik_" + $name + "dynTranB") -sol ikSplineSolver -ccv false -pcv false`;
+		string $mdDyn = `createNode -n ("md_" + $name + "dynTranA") multiplyDivide`;
+		string $mdDyn2 = `createNode -n ("md_" + $name + "dynTranB") multiplyDivide`;
+		string $ctrl[] = `circle -n ($name + "dynTransCtrl") -ch 0 -o on -nr 0 1 0 -s 16`;
+		addAttr -ln "dynScale"  -at double  -dv 0.1 $ctrl[0];
+		setAttr -e -keyable true ($ctrl[0] + ".dynScale");
+		addAttr -ln "dynSmoothness"  -at double  -dv 3 $ctrl[0];
+		setAttr -e -keyable true ($ctrl[0] + ".dynSmoothness");
+		string $group = `group -n ($sel[0] + "dynOR") $sel[0]`;
+		
+		if ($r == 1){
+			connectAttr ($jtA + ".r") ($mdDyn + ".input1");
+			connectAttr ($ctrl[0] + ".dynScale") ($mdDyn + ".input2X");
+			connectAttr ($ctrl[0] + ".dynScale") ($mdDyn + ".input2Y");
+			connectAttr ($ctrl[0] + ".dynScale") ($mdDyn + ".input2Z");
+			connectAttr ($mdDyn + ".output") ($group + ".r");
+		}
+		else{
+			connectAttr ($jtA + ".rx") ($mdDyn + ".input1X");
+			connectAttr ($jtA + ".rz") ($mdDyn + ".input1Z");
+			connectAttr ($mdDyn + ".outputZ") ($mdDyn + ".input1Y");
+			setAttr ($mdDyn + ".input2Y") -1;
+			connectAttr ($ctrl[0] + ".dynScale") ($mdDyn + ".input2X");
+			connectAttr ($ctrl[0] + ".dynScale") ($mdDyn + ".input2Z");
+			connectAttr ($mdDyn + ".outputX") ($group + ".tz");
+			connectAttr ($mdDyn + ".outputY") ($group + ".tx");
+				
+			connectAttr ($jtC + ".rx") ($mdDyn2 + ".input1X");
+			connectAttr ($ctrl[0] + ".dynScale") ($mdDyn2 + ".input2Y");
+			setAttr ($mdDyn2 + ".input2X") -1;
+			connectAttr ($mdDyn2 + ".outputX") ($mdDyn2 + ".input1Y");
+			connectAttr ($mdDyn2 + ".outputY") ($group + ".ty");
+		}
+		
+		connectAttr ($ctrl[0] + ".dynSmoothness") ($p[1] + ".goalSmoothness");
+		connectAttr ($ctrl[0] + ".dynSmoothness") ($p2[1] + ".goalSmoothness");
+		
+		string $jntGrp = `group -n ($name + "dynTranJntsGrp") $jtA $jtC $ik[0] $ik2[0]`;
+		setAttr ($jntGrp + ".v") 0;
+		string $targetC = `group -n ($name + "dynTranTargetCurves") $copy $copy2`;
+		setAttr ($targetC + ".v") 0;
+		string $spGrp = `group -n ($name + "dynTranSplineGrp") $dynC $dynC2`;
+		setAttr ($spGrp + ".v") 0;
+		parent $targetC $ctrl[0];
+		string $ctrlGrp = `group -n ($name + "dynTranCtrlGrp") $ctrl[0]`;
+		group -n ($name + "dynTransGrp") $jntGrp $spGrp $ctrlGrp;
+
+	}
+}
+
+global proc csDynamicsMenu(){
+
+	if ( `window -exists csDynamicsMenu` ) {
+		 deleteUI csDynamicsMenu;
+	}
+		
+	window -s 0 -t "Dynamics" csDynamicsMenu;
+	
+	frameLayout -w 300 -l "Dynamic Joint Chain";
+		columnLayout;
+		rowLayout -nc 2 -cw2 250 50;
+			button -w 247 -bgc 1 1 0 -l "Make Joint Chain Dynamic (Hair)" -ann "Select Joint Chain" -c "string $joints[] = makeJointChainDynamicHair()" btn_makeJointChainDynamicHair;
+			button -w 47 -bgc 0 1 1 -l "IK" -en 0 -ann "Select Output Curve" -c "buildIKforHair($joints)" btn_ikHair;
+		setParent ..;
+		button -w 300 -bgc 1 0 1 -l "Make Joint Chain Dynamic (Particles)" -ann "Select Joint Chain" -c "makeJointChainDynamicPart()" btn_makeJointChainDynamicPart;
+	setParent ..;
+	frameLayout -w 300 -l "Dynamic Transform Node";
+		columnLayout;
+			textField -tx "" -w 300 tx_name;
+			checkBox -l "Switch to Rotation" -v 0 cb_rot;
+			button -w 300 -bgc 0 1 1 -l "DynTransformNode" -ann "DynTransformNode" -c "csDynTransformNode(`textField -q -tx tx_name`, `checkBox -q -v cb_rot`)" btn_dynTransformNode;
+		setParent ..;
+	setParent ..;
+
+	window -e -w 300 -h 50 csDynamicsMenu;
+		 
+	showWindow csDynamicsMenu;
+}
+
+csDynamicsMenu();

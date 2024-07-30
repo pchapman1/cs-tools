@@ -1,0 +1,228 @@
+//	connectToRef v 1.01
+//	Script written by Peter Chapman.
+//	Email: peter@chapmanstudios.co.uk
+//
+//	You are welcome to use and distribute this script, however,
+//	if you do so, send me a quick e-mail with your name and what
+//	you used it for.
+//
+//	Also feel free to give me feedback / request changes.
+//
+//	If you end up using the script for a commercial project,
+//	feel free to contribute via PayPal using the email address
+//	above!
+
+source "cs/csProgBar.mel";
+
+global proc connectToRef(string $ref){
+
+	if ($ref == ""){
+		print "No Reference loaded";
+	}
+	
+	else{
+		string $sel[] = `ls -sl`;
+		string $attrList[];
+		
+		for ($each in $sel){
+			string $buffer[];
+			tokenize $each ":" $buffer;
+			string $obj = $buffer[(size($buffer) -1)];
+			$attrList = `listAttr -v -k -u $each`;
+			for ($attr in $attrList){
+				if (objExists ($each + "." + $attr)) connectAttr ($each + "." + $attr) ($ref + $obj + "." + $attr);
+				else print ($each + "." + $attr + "  does not exist and will be skipped");
+			}
+		}
+	}
+}
+
+global proc constrainToRef(string $ref){
+
+	if ($ref == ""){
+		print "No Reference loaded";
+	}
+	
+	else{
+		string $sel[] = `ls -sl`;
+		
+		for ($each in $sel){
+			string $buffer[];
+			tokenize $each ":" $buffer;
+			string $obj = $buffer[(size($buffer) -1)];
+			parentConstraint -mo -weight 1 $each ($ref + $obj);
+		}
+	}
+}
+
+global proc constrainRToRef(string $ref){
+
+	if ($ref == ""){
+		print "No Reference loaded";
+	}
+	
+	else{
+		string $sel[] = `ls -sl`;
+		
+		for ($each in $sel){
+			string $buffer[];
+			tokenize $each ":" $buffer;
+			string $obj = $buffer[(size($buffer) -1)];
+			parentConstraint -mo -skipTranslate x -skipTranslate y -skipTranslate z -weight 1 $each ($ref + $obj);
+		}
+	}
+}
+
+global proc constrainTToRef(string $ref){
+
+	if ($ref == ""){
+		print "No Reference loaded";
+	}
+	
+	else{
+		string $sel[] = `ls -sl`;
+		
+		for ($each in $sel){
+			string $buffer[];
+			tokenize $each ":" $buffer;
+			string $obj = $buffer[(size($buffer) -1)];
+			parentConstraint -mo -skipRotate x -skipRotate y -skipRotate z -weight 1 $each ($ref + $obj);
+		}
+	}
+}
+
+global proc disconnectFromRef(string $ref){
+
+	source generateChannelMenu.mel;
+	
+	if ($ref == ""){
+		print "No Reference loaded";
+	}
+	
+	else{
+		string $sel[] = `ls -sl`;
+		string $attrList[];
+		
+		for ($each in $sel){
+			string $buffer[];
+			tokenize $each ":" $buffer;
+			string $obj = $buffer[(size($buffer) -1)];
+			$attrList = `listAttr -v -k -u ($ref + $obj)`;
+			for ($attr in $attrList){
+				if (objExists ($ref + $obj + "." + $attr)) CBdeleteConnection ($ref + $obj + "." + $attr);
+			}
+		}
+	}
+}
+
+global proc string getRef(){
+	string $sel[] = `ls -sl`;
+	string $buffer[];
+	tokenize $sel[0] ":" $buffer;
+	string $ref = ($buffer[0] + ":");
+	print ("Reference set to: <" + $ref + ">\n");
+	text -e -l $ref tTargetRef;
+	return $ref;
+}
+
+global proc copyKeys(string $ref){
+
+	if ($ref == ""){
+		print "No Reference loaded";
+	}
+	
+	else{
+		string $sel[] = `ls -sl`;
+		
+		int $tStart = `playbackOptions -q -min`;
+		int $tEnd = `playbackOptions -q -max`;
+		
+		int $p = 0;
+		
+		for ($each in $sel){
+			string $buffer[];
+			tokenize $each ":" $buffer;
+			string $obj = $buffer[(size($buffer) -1)];
+			
+			++$p;
+			int $interrupt = progWindow($p, size($sel));
+				if ($interrupt == 1){
+					break;
+				}
+			
+			for ($i = $tStart; $i < $tEnd; ++$i){
+				if (size(`keyframe -time $i -q $each`) != 0){
+					currentTime $i;
+					select -r $each;
+					timeSliderCopyKey;
+					select -r ($ref + $obj);
+					timeSliderPasteKey false;
+				}
+			}	
+		}
+	}
+}
+
+//Menu
+global proc connectToRefMenu(){
+	source generateChannelMenu.mel;
+	
+	string $ref;
+	
+	if(`window -q -ex connectToRef_menu`){
+  		deleteUI connectToRef_menu;
+	}
+    window
+		-rtf 1
+		-mnb 0
+		-mxb 0
+		-s 0
+		-title "connect To Reference"
+		connectToRef_menu;
+	
+    columnLayout ColumnLayout;
+		rowLayout -nc 3 -cw3 75 120 100;
+			text -l "Target Ref:";
+			text -l "" tTargetRef;
+			button
+				-bgc 1 1 0
+				-w 100
+				-l "Target Ref"
+				-ann "Select any object from the referenced asset"
+				-c "$ref = getRef()";
+		setParent ..;		
+		button
+			-bgc 0 1 0
+			-w 300
+			-l "Connect To Reference"
+			-ann "Select All controls you wish to connect to."
+			-c "connectToRef($ref)";
+		//rowLayout -nc 2 -cw2 150 150;
+		//	button	-bgc 1 1 0 -w 150 -l "Connect Rotate" -c "connectToRef($ref)";
+		//	button	-bgc 0 1 1 -w 147 -l "Connect Translate" -c "connectToRef($ref)";
+		//setParent ..;
+		button
+			-bgc 0 1 0
+			-w 300
+			-l "Constrain To Reference"
+			-ann "Select All controls you wish to connect to."
+			-c "constrainToRef($ref)";
+		rowLayout -nc 2 -cw2 150 150;
+			button -bgc 1 1 0 -w 150 -l "Constrain Rotate" -c "constrainRToRef($ref)";
+			button -bgc 0 1 1 -w 147 -l "Constrain Translate" -c "constrainTToRef($ref)";
+		setParent ..;
+		button -bgc 1 1 1 -w 300 -l "Copy KeyFrames" -c "copyKeys($ref)";
+		button
+			-bgc 1 0.3 0.3
+			-w 300
+			-l "Disconnect From Reference"
+			-ann "Select All controls you wish to connect to."
+			-c "disconnectFromRef($ref)";
+	
+	showWindow connectToRef_menu;
+	window -e -w 300 -h 135 connectToRef_menu;
+	
+	$ref = getRef();
+}
+
+connectToRefMenu();

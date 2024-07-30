@@ -1,0 +1,58 @@
+//  Chapman Studios Menu v 1.01
+//	Script written by Peter Chapman.
+//	Web: https://peter-chapman.co.uk
+//
+//	You are welcome to use and distribute this script, however,
+//	if you do so, send me a quick e-mail with your name and what
+//	you used it for.
+//
+//	Also feel free to give me feedback / request changes.
+//
+//	If you end up using the script for a commercial project,
+//	feel free to contribute via PayPal using the email address
+//	above!
+
+global proc loadScript(string $script){
+	string $command = ("source \"" + $script + ".mel\";"); //"
+	eval $command;
+}
+
+//Menu
+global proc csMenu(){
+	
+	string $dir = "cs";
+  
+	if(`window -q -ex cs_menu`){
+  		deleteUI cs_menu;
+	}
+
+    window -title "CS Scripts" cs_menu;
+	
+    columnLayout ColumnLayout;
+		button -bgc 1 1 1 -w 190 -l "MEL" -ann "MEL" -c ("loadScript(\"" + $dir + "/MEL\")");
+		button -bgc 1 1 0 -w 190 -l "Notes" -ann "Notes" -c ("loadScript(\"" + $dir + "/csNotes\")");
+		button -bgc 1 1 0 -w 190 -l "Layout" -ann "Layout" -c ("loadScript(\"" + $dir + "/csLayout\")");
+		button -bgc 0 1 0 -w 190 -l "ROG" -ann "ROG" -c ("loadScript(\"" + $dir + "/csRogPublic\")");
+		button -bgc 0 1 0 -w 190 -l "DAC" -ann "DAC" -c ("loadScript(\"" + $dir + "/csDAC\")");
+		button -bgc 1 0.5 0 -w 190 -l "Rigging Tools" -ann "Rigging Tools" -c ("loadScript(\"" + $dir + "/csRiggingTools\")");
+		button -bgc 1 0.5 0 -w 190 -l "Skeleton Tools" -ann "Skeleton Tools" -c ("loadScript(\"" + $dir + "/csSkelTools\")");
+		button -bgc 1 0.5 0 -w 190 -l "Dynamics" -ann "Dynamics" -c ("loadScript(\"" + $dir + "/csDynamics\")");
+		button -bgc 1 1 0 -w 190 -l "Display Override" -ann "Display Override" -c ("loadScript(\"" + $dir + "/csDisplayOverrideControl\")");
+		button -bgc 0 0.5 1 -w 190 -l "Make Parent Nodes" -ann "Make Parent Nodes" -c ("loadScript(\"" + $dir + "/csMakeParentNodes\")");
+		button -bgc 0 0.5 1 -w 190 -l "Light Instancer" -ann "Light Instancer" -c ("loadScript(\"" + $dir + "/csLightInstancer\")");
+		button -bgc 1 0.5 0.5 -w 190 -l "BlendShape Tool" -ann "BlendShape Tool" -c ("loadScript(\"" + $dir + "/csBlendShapeTool\")");
+		button -bgc 0 1 1 -w 190 -l "Character Template Menu" -ann "Character Template Menu" -c ("loadScript(\"" + $dir + "/csCMT\")");
+		button -bgc 0 1 1 -w 190 -l "Connect Referenced Characters" -ann "Connect Referenced Characters" -c ("loadScript(\"" + $dir + "/csConnectToRef\")");
+		button -bgc 0 1 1 -w 190 -l "Temp Sel/Pose" -ann "Temp Sel/Pose" -c ("loadScript(\"" + $dir + "/csSelPoseTemp\")");
+		button -bgc 0.5 0.5 1 -w 190 -l "Texture Editor" -ann "Texture Editor" -c ("loadScript(\"" + $dir + "/csTextureEditor\")");
+		text -l "";
+		text -l "External Scripts (if installed):";
+		text -l "";
+		button -bgc 0 0 0 -w 190 -l "Advanced Rename" -ann "Texture Editor" -c ("loadScript(\"advancedRename\")");
+	setParent ..;
+	
+	showWindow cs_menu;
+	window -e -w 197 -h 135 cs_menu;
+}
+
+csMenu();

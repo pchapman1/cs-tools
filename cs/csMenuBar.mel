@@ -1,0 +1,80 @@
+/*
+Peter Chapman Menu v 2.02
+Scripts written by Peter Chapman.
+Web: https://peter-chapman.co.uk
+
+You are welcome to use and distribute this script, however,
+if you do so, send me a quick e-mail with your name and what
+you used it for.
+
+Also feel free to give me feedback / request changes.
+
+If you end up using the script for a commercial project,
+please contribute via PayPal using the email address
+above!
+*/
+
+global proc loadScript(string $script){
+	string $command = ("source \"" + $script + ".mel\";"); //"
+	eval $command;
+}
+
+//Menu
+global proc csMenuBar(){
+
+	string $dir = "cs";
+
+	if(`menu -q -ex cs_menuBar`){
+  		deleteUI cs_menuBar;
+	}
+
+	setParent MayaWindow;
+    menu -label "Peter Chapman" -tearOff true cs_menuBar;
+		menuItem -sm 1 -tearOff true -l "General";
+			menuItem -l "Reference Manager" -ann "Reference Manager" -c ("loadScript(\"" + $dir + "/csRefMan\")");
+			menuItem -l "Notes" -ann "Notes" -c ("loadScript(\"" + $dir + "/csNotes\")");
+			menuItem -l "Layout" -ann "Layout" -c ("loadScript(\"" + $dir + "/csLayout\")");
+			menuItem -l "Display Override" -ann "Display Override" -c ("loadScript(\"" + $dir + "/csDisplayOverrideControl\")");
+			menuItem -l "Make Parent Nodes" -ann "Make Parent Nodes" -c ("loadScript(\"" + $dir + "/csMakeParentNodes\")");
+			menuItem -l "Advanced Rename" -ann "Advanced Rename" -c ("loadScript(\"" + $dir + "/csAdvancedRename\")");
+		setParent -m ..;
+		menuItem -sm 1 -tearOff true -l "Modelling";
+			menuItem -l "Mesh Control" -ann "Mesh Control" -c ("loadScript(\"" + $dir + "/csMeshControl\")");
+		setParent -m ..;
+		menuItem -sm 1 -tearOff true -l "Animation";
+			menuItem -l "Character Template Menu" -ann "Character Template Menu" -c ("loadScript(\"" + $dir + "/csCMT\")");
+			menuItem -l "Key Frame Helper" -ann "KeyFrame Helper" -c ("loadScript(\"" + $dir + "/csKeyHelper\")");
+			menuItem -l "Connect Referenced Characters" -ann "Connect Referenced Characters" -c ("loadScript(\"" + $dir + "/csConnectToRef\")");
+			menuItem -l "Temp Sel/Pose" -ann "Temp Sel/Pose" -c ("loadScript(\"" + $dir + "/csSelPoseTemp\")");
+			menuItem -l "obj Sequence Exporter" -ann "obj Sequence Exporter" -c ("loadScript(\"" + $dir + "/csObjSeqExport\")");
+		setParent -m ..;
+		menuItem -sm 1 -tearOff true -l "Rigging";
+			menuItem -l "Rigging Tools" -ann "Rigging Tools" -c ("loadScript(\"" + $dir + "/csRiggingTools\")");
+			menuItem -l "Skeleton Tools" -ann "Skeleton Tools" -c ("loadScript(\"" + $dir + "/csSkelTools\")");
+			menuItem -l "BlendShape Tool" -ann "BlendShape Tool" -c ("loadScript(\"" + $dir + "/csBlendShapeTool\")");
+			menuItem -l "ROG(Old DAC)" -ann "ROG(Old DAC)" -c ("loadScript(\"" + $dir + "/csRogPublic\")");
+			menuItem -l "DAC" -ann "Duplicate Along Curve" -c ("loadScript(\"" + $dir + "/csDAC\")");
+			menuItem -l "Dynamics" -ann "Dynamics" -c ("loadScript(\"" + $dir + "/csDynamics\")");
+			menuItem -d 1;
+			menuItem -l "Auto-Rig" -ann "Auto Rig" -c ("loadScript(\"" + $dir + "/csAutoRig\")");
+		setParent -m ..;
+		menuItem -sm 1 -tearOff true -l "Lighting/Texturing";
+			menuItem -l "Texture Editor" -ann "Texture Editor" -c ("loadScript(\"" + $dir + "/csTextureEditor\")");
+			menuItem -l "Light Instancer" -ann "Light Instancer" -c ("loadScript(\"" + $dir + "/csLightInstancer\")");
+		setParent -m ..;
+		menuItem -sm 1 -tearOff true -l "Math";
+			menuItem -l "Chart Builder" -ann "Chart Builder" -c ("loadScript(\"" + $dir + "/csChartBuilder\")");
+		setParent -m ..;
+		menuItem -sm 1 -tearOff true -l "External";
+			menuItem -l "Advanced Rename" -ann "Advanced Rename" -c ("loadScript(\"advancedRename\")");
+			menuItem -l "Ninja Light" -ann "Ninja Light" -c ("loadScript(\"Ninja_Light\")");
+		setParent -m ..;
+		menuItem -d 1;
+		menuItem -l "Old MEL Scripts" -ann "Old MEL Scripts" -c ("loadScript(\"" + $dir + "/MEL\")");
+		menuItem -l "Reload Menu" -ann "Reload Menu" -c ("source \"cs/csMenuBar.mel\";");
+		menuItem -d 1;
+		menuItem -l "About" -ann "About" -c ("loadScript(\"" + $dir + "/csAbout\")");
+	setParent -menu ..;
+}
+
+csMenuBar();

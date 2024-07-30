@@ -1,0 +1,185 @@
+//	DisplayOverride v1.1.1
+//	Script written by Peter Chapman.
+//	Email: peter@chapmanstudios.co.uk
+//
+//	You are welcome to use and distribute this script, however,
+//	if you do so, send me a quick e-mail with your name and what
+//	you used it for.
+//
+//	Also feel free to give me feedback / request changes.
+//
+//	If you end up using the script for a commercial project,
+//	feel free to contribute via PayPal using the email address
+//	above!
+
+// Delete all display layers
+global proc deleteAllDisplayLayers(){
+	string $renderLayers[] = `listConnections layerManager`;
+	stringArrayRemoveAtIndex (0, $renderLayers);
+	
+	if (size($renderLayers) != 0){
+		delete $renderLayers;
+    }
+}
+
+// Set Display Overrides
+global proc setSelectable(int $sEn, int $se, int $cEn, int $col, int $reset){
+	string $sel[] = `ls -sl`;
+
+	for ($each in $sel){
+		if (`attributeQuery -node $each -exists "visibility"`){
+			if ($reset) setAttr ($each + ".overrideEnabled") 0;
+			else{
+				setAttr ($each + ".overrideEnabled") 1;
+				if ($sEn) setAttr ($each + ".overrideDisplayType") $se;
+				if ($cEn) setAttr ($each + ".overrideColor") $col;
+			}
+		}
+	}
+}
+
+// Make Objects Non Renderable
+global proc setRenderable(int $i){
+	string $sel[] = `ls -dag -type "shape" -sl`;
+	
+	for ($each in $sel){
+		setAttr ($each + ".castsShadows") $i;
+		setAttr ($each + ".receiveShadows") $i;
+		setAttr ($each + ".motionBlur")$i;
+		setAttr ($each + ".motionBlur") $i;
+		setAttr ($each + ".motionBlur") $i;
+		setAttr ($each + ".primaryVisibility") $i;
+		setAttr ($each + ".smoothShading") $i;
+		setAttr ($each + ".visibleInReflections") $i;
+		setAttr ($each + ".visibleInRefractions") $i;
+		setAttr ($each + ".doubleSided") $i;
+		setAttr ($each + ".miTransparencyCast") $i;
+		setAttr ($each + ".miTransparencyReceive") $i;
+		setAttr ($each + ".miReflectionReceive") $i;
+		setAttr ($each + ".miRefractionReceive") $i;
+		setAttr ($each + ".miFinalGatherCast") $i;
+		setAttr ($each + ".miFinalGatherReceive") $i;
+		setAttr ($each + ".geometryAntialiasingOverride") $i;
+		setAttr ($each + ".shadingSamplesOverride") $i;
+    }
+}
+
+// Reset default channel visibility
+global proc resetDefChanVis(){
+	string $sel[] = `ls -sl`;
+	for ($each in $sel){
+		setAttr -lock 0 -k 1 ($each + ".tx");
+		setAttr -lock 0 -k 1 ($each + ".ty");
+		setAttr -lock 0 -k 1 ($each + ".tz");
+		setAttr -lock 0 -k 1 ($each + ".rx");
+		setAttr -lock 0 -k 1 ($each + ".ry");
+		setAttr -lock 0 -k 1 ($each + ".rz");
+		setAttr -lock 0 -k 1 ($each + ".sx");
+		setAttr -lock 0 -k 1 ($each + ".sy");
+		setAttr -lock 0 -k 1 ($each + ".sz");
+	}
+}
+
+// Force Smooth level
+global proc forceSmoothLevel(int $x){
+	string $sel[] = `ls -sl -dag`;
+	
+	displaySmoothness -divisionsU 3 -divisionsV 3 -pointsWire 16 -pointsShaded 4 -polygonObject 3;
+    subdivDisplaySmoothness -smoothness 3;
+
+	for ($each in $sel){
+		if (`attributeQuery -node $each -exists "smoothLevel"`){
+			setAttr ($each + ".smoothLevel") $x;
+        }
+    }
+}
+
+// Force the Render-Smooth Level
+global proc forceRenderSmoothLevel(int $x){
+	string $sel[] = `ls -sl -dag`;
+	
+	displaySmoothness -divisionsU 3 -divisionsV 3 -pointsWire 16 -pointsShaded 4 -polygonObject 3;
+    subdivDisplaySmoothness -smoothness 3;
+    
+	for ($each in $sel){
+		if (`attributeQuery -node $each -exists "smoothLevel"`){
+			setAttr ($each + ".useSmoothPreviewForRender") 0;
+			setAttr ($each + ".renderSmoothLevel") $x;
+        }
+    }
+}
+
+// Reset smooth settings
+global proc resetSmoothSettings(){
+	string $sel[] = `ls -sl -dag`;
+	for ($each in $sel){
+		if (`attributeQuery -node $each -exists "smoothLevel"`){
+			setAttr ($each + ".smoothLevel") 2;
+			setAttr ($each + ".useSmoothPreviewForRender") 1;
+			setAttr ($each + ".renderSmoothLevel") 2;
+        }
+    }
+}
+
+// Menu
+global proc displayOverrideMenu(){
+	source generateChannelMenu.mel;
+  
+	if(`window -q -ex displayOverride_menu`){
+  		deleteUI displayOverride_menu;
+	}
+	
+    window -title "Display" displayOverride_menu;
+	
+    columnLayout;
+//				button -bgc 1 0 0 -w 95 -l "" -c "setDisplayCol(1, 0, 0)";
+//				button -bgc 0 1 0 -w 95 -l "" -c "setDisplayCol(0, 1, 0)";
+//				button -bgc 0 0 1 -w 95 -l "" -c "setDisplayCol(0, 1, 0)";
+//				button -bgc 1 1 0 -w 95 -l "" -c "setDisplayCol(0, 1, 0)";
+//			setParent ..;
+//			button -w 190 -bcg 1 1 1 -l "Reset to Default" -c "setDisplayCol(0, 0, 0)";
+//		setParent ..;
+		frameLayout -w 190 -l "Object Colour / Selection";
+			columnLayout;
+				rowLayout -nc 2 -cw2 90 90;
+					button -bgc 1 0.5 0 -w 90 -l "Non-Selectable" -c "setSelectable(1,2,0,0,0)";
+					button -bgc 0 1 0 -w 90 -l "Selectable" -c "setSelectable(1,0,0,0,0)";
+				setParent ..;
+				rowLayout -nc 5 -cw5 35 35 35 35 35;
+					button -bgc 1 0 0 -h 20 -w 35 -l "" -c "setSelectable(0,0,1,13,0)";
+					button -bgc 0 1 0 -h 20 -w 35 -l "" -c "setSelectable(0,0,1,14,0)";
+					button -bgc 0 0 1 -h 20 -w 35 -l "" -c "setSelectable(0,0,1,6,0)";
+					button -bgc 1 1 0 -h 20 -w 35 -l "" -c "setSelectable(0,0,1,17,0)";
+					button -bgc 1 1 1 -h 20 -w 35 -l "" -c "setSelectable(0,0,1,16,0)";
+				setParent ..;
+					button -bgc 0.5 0.5 0.5 -h 20 -w 185 -l "Reset" -c "setSelectable(0,0,0,0,1)";
+			setParent ..;
+		setParent ..;
+		frameLayout -w 190 -l "Renderable Control";
+			columnLayout;
+				button -bgc 1 0.5 0 -w 190 -l "Make Selected Non-Renderable" -c "setRenderable(0)";
+				button -bgc 0 1 0 -w 190 -l "Make Selected Renderable" -c "setRenderable(1)";
+			setParent ..;
+		setParent ..;
+		frameLayout -w 190 -l "Smooth Control";
+			columnLayout;
+			text -l "Set the desired smooth level below:";
+			intField -w 190 "_smoothValue";
+				button -bgc 1 1 0 -h 20 -w 190 -l "Force Smooth Level" -c ("forceSmoothLevel(`intField -q -v _smoothValue`);");
+				button -bgc 0 1 1 -h 20 -w 190 -l "Force Render Override" -c ("forceRenderSmoothLevel(`intField -q -v _smoothValue`);");
+				button -bgc 0 1 0 -h 30 -w 190 -l "Reset to defaults" -c "resetSmoothSettings()";
+			setParent ..;
+		setParent ..;
+		frameLayout -w 190 -l "Other";
+			columnLayout;
+				button -bgc 1 0.5 0 -w 190 -l "Reset Default Channel Visability" -c "resetDefChanVis()";
+				button -bgc 1 0.2 0.2 -w 190 -l "Delete all display layers" -c "deleteAllDisplayLayers()";
+			setParent ..;
+		setParent ..;
+	setParent ..;
+	
+	showWindow displayOverride_menu;
+	window -e -w 190 -h 316 displayOverride_menu;
+}
+
+displayOverrideMenu();

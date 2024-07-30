@@ -1,0 +1,368 @@
+/*
+Duplicate Along Curve v2.0.1
+Script written by Peter Chapman.
+Email: peter@chapmanstudios.co.uk
+
+You are welcome to use and distribute this script, however,
+if you do so, send me a quick e-mail with your name and what
+you used it for.
+
+Also feel free to give me feedback / request changes.
+
+If you end up using the script for a commercial project,
+feel free to contribute via PayPal using the email address
+above!
+*/
+
+// Source external scripts:
+source generateChannelMenu.mel;
+source "cs/csProgBar.mel";
+
+// disable cycleCheck
+cycleCheck -e off;
+
+// Reset
+global proc dacReset(int $n, int $cb_inst, int $cb_beams, int $cb_circle, int $cb_aim, int $cb_flow){
+}
+
+global proc int numCvs(string $curve){
+	string $infoNode = `createNode curveInfo`;
+	connectAttr ($curve + ".worldSpace")  ($infoNode + ".inputCurve");
+	
+	int $numCvs;
+	$numCvs = `getAttr ($curve + ".degree")` + `getAttr ($curve + ".spans")`;
+	// delete the curve info node
+	delete $infoNode;
+	return $numCvs;
+}
+
+// autoFill
+global proc autoFill(){
+
+	string $sel[] = `ls -sl`;
+	
+	if (size($sel) > 2) confirmDialog -icn "warning" -t "ERROR 1.01" -m "Too many objects selected" -b "OK";
+	
+	else if (size($sel) == 2){
+		floatField -e -v `numCvs($sel[1])` ff_dac;
+	}
+	
+	else floatField -e -v `numCvs($sel[1])` ff_dac;
+	
+	select -r $sel;
+}
+
+// Build Star Shape
+global proc string makeStar(string $name){
+	string $circle[] = `circle -n $name -ch 0 -o on -nr 0 0 1 -r 1 -s 16`;
+	string $star = $circle[0];
+	scale -r -ocp 0.25 0.25 0.25 ($star + ".cv[0]") ($star + ".cv[2]") ($star + ".cv[4]") ($star + ".cv[6]") ($star + ".cv[8]") ($star + ".cv[10]") ($star + ".cv[12]") ($star + ".cv[14]");
+	setAttr -lock true -keyable false -channelBox false ($star + ".v");
+	return $star;
+}
+// Get Data from Control Node
+// Write Data to Control Node
+// Build Pillars
+
+// Main Procedure
+global proc dac(int $n, int $cb_inst, int $cb_beams, int $cb_circle, int $cb_aim, int $cb_flow){
+
+	string $sel[] = `ls -sl`;
+	
+	string $duplicate = "duplicate";
+	if ($cb_inst == 1) $duplicate = "instance";
+	
+	if (size($sel) == 1){
+		if (`objExists ($sel[0] + ".csControls")`) dacReset($n, $cb_inst, $cb_beams, $cb_circle, $cb_aim, $cb_flow);
+		else confirmDialog -icn "warning" -t "ERROR 1.02" -m "This object is not a csDAC Control Node" -b "OK";
+	}
+	
+	else if (size($sel) != 2) confirmDialog -icn "warning" -t "ERROR 1.01" -m "Not enough or too many objects selected." -b "OK";
+	
+	else {
+		string $piece = `rename $sel[0] piece0`;
+		string $targetCurve = `rename $sel[1] targetCurve0`;
+		
+		// create Curve Control Node and Heirarchy
+	
+	    string $cNode = `createNode -n controlNode transform`;
+	    string $curvesNode = `createNode -n curvesNode transform`;
+	    string $piecesNode = `createNode -n piecesNode transform`;
+	    string $locNode = `createNode -n locatorNode transform`;
+		string $flowNode = `createNode -n flowNode transform`;
+	    setAttr ($locNode + ".v") 0;
+	
+	    // SetUpControlNode
+	    addAttr -ln "csControls"  -at bool  $cNode;
+	    setAttr -e -channelBox true ($cNode + ".csControls") 1;
+	    addAttr -ln "bank"  -at double $cNode;
+	    setAttr -e -keyable true ($cNode + ".bank");
+	    addAttr -ln "objScale" -at double $cNode;
+		setAttr -e -keyable true ($cNode + ".objScale") 1;
+		addAttr -ln "ctrlScale" -at double $cNode;
+		setAttr -e -keyable true ($cNode + ".ctrlScale") 1;
+		
+	    setAttr -lock true -keyable false -channelBox false ($cNode + ".tx");
+	    setAttr -lock true -keyable false -channelBox false ($cNode + ".ty");
+	    setAttr -lock true -keyable false -channelBox false ($cNode + ".tz");
+	    setAttr -lock true -keyable false -channelBox false ($cNode + ".rx");
+	    setAttr -lock true -keyable false -channelBox false ($cNode + ".ry");
+	    setAttr -lock true -keyable false -channelBox false ($cNode + ".rz");
+	    setAttr -lock true -keyable false -channelBox false ($cNode + ".sx");
+	    setAttr -lock true -keyable false -channelBox false ($cNode + ".sy");
+	    setAttr -lock true -keyable false -channelBox false ($cNode + ".sz");
+	    setAttr -lock true -keyable false -channelBox false ($cNode + ".v");
+	    
+		// Set Curve identifier
+		if (!`objExists ($targetCurve + ".csDac")`){
+			addAttr -ln "csDac"  -at bool  $targetCurve;
+			setAttr -e -channelBox true ($targetCurve + ".csDac") 1;
+	    }
+		
+		// Create Offset Curve for loops
+	    string $t[] = `offsetCurve
+	        -ch on
+	        -rn false
+	        -cb 2
+	        -st true
+	        -cl false
+	        -cr 0
+	        -d 0
+	        -tol 0.01
+	        -sd 0
+	        -ugn false 
+	        $targetCurve`;
+		
+	    string $objUpCurve = $t[0];
+	    setAttr ($objUpCurve + ".ty") 1;
+		
+		//duplicate pieces
+		string $allPieces[];
+	    for ($i = 0; $i < $n; ++$i){
+			
+			// enable Progress Bar
+			int $interrupt = progWindow($i, $n);
+			if ($interrupt == 1){
+				break;
+			}
+			
+			// create uValue Override
+			string $md_uValue = `createNode multiplyDivide -n ("md_csDacUValue" + $i)`;
+			string $pm_uValue = `createNode plusMinusAverage -n ("pm_csDacUValue" + $i)`;
+			setAttr ($md_uValue + ".input1Y") (1.000 / $n);
+			setAttr ($md_uValue + ".input2Y") $i;
+			connectAttr -f ($md_uValue + ".outputX") ($pm_uValue + ".input1D[0]");
+			connectAttr -f ($md_uValue + ".outputY") ($pm_uValue + ".input1D[1]");
+			
+			// build locators for aim contstraints
+			string $t[] = `spaceLocator -p 0 0 0`;
+			$cLoc = `parent $t[0] $locNode`;
+
+			// Build Path
+			select -r $cLoc $objUpCurve;
+			string $motionPath = `pathAnimation	-fractionMode true -follow true`;
+			disconnectAttr ($motionPath +"_uValue.output") ($motionPath + ".uValue");
+			connectAttr -f ($pm_uValue + ".output1D") ($motionPath + ".uValue");
+	
+			// Dupicate / Instance Pieces
+			if ($cb_inst) $t = `instance $piece`;
+	        else $t = `duplicate $piece`;
+	        string $cMesh = $t[0];
+			string $cc_piece = makeStar(("cc_piece" + $i));
+			$allPieces[$i] = $cc_piece;
+			addAttr -ln "offset" -at double $cc_piece;
+			setAttr -e -keyable true ($cc_piece + ".offset") 0;
+			addAttr -ln "offsetRate" -at double $cc_piece;
+			setAttr -e -keyable true ($cc_piece + ".offsetRate") 0.01;
+			connectAttr -f ($cc_piece + ".offset") ($md_uValue + ".input1X");
+			connectAttr -f ($cc_piece + ".offsetRate") ($md_uValue + ".input2X");
+			string $cc_meshScale = `group -n ("meshScale" + $i) $cMesh`;
+			string $cc_ctrlScale = `group -n ("ctrlScale" + $i) $cc_piece`;
+			string $cPiece = `group -n ("pieceBindNode" + $i) $cc_ctrlScale $cc_meshScale`;
+			connectAttr -f ($cc_piece + ".s") ($cc_meshScale + ".s");
+			parentConstraint -mo -weight 1 $cc_piece $cc_meshScale;
+			connectAttr -f ($cNode + ".objScale") ($cPiece + ".sx");
+			connectAttr -f ($cNode + ".objScale") ($cPiece + ".sy");
+			connectAttr -f ($cNode + ".objScale") ($cPiece + ".sz");
+	        connectAttr -f ($cNode + ".ctrlScale") ($cc_ctrlScale + ".sx");
+	        connectAttr -f ($cNode + ".ctrlScale") ($cc_ctrlScale + ".sy");
+	        connectAttr -f ($cNode + ".ctrlScale") ($cc_ctrlScale + ".sz");
+			
+			// Distribute Pieces along curve
+	        select $cPiece $targetCurve;
+	        string $motionPath = `pathAnimation
+	            -fractionMode true
+	            -follow true
+	            -followAxis z
+	            -upAxis y
+	            -worldUpType "object"
+	            -worldUpObject $cLoc
+	            -inverseUp false
+	            -inverseFront false
+	            -bank true`;
+	        disconnectAttr ($motionPath +"_uValue.output") ($motionPath + ".uValue");
+	        connectAttr -f ($pm_uValue + ".output1D") ($motionPath + ".uValue");
+	        connectAttr -f ($cNode + ".bank") ($motionPath + ".bankScale");
+
+			// Setup Aim Constraint
+			
+			// Setup Flow
+			if ($cb_flow == 1){
+				string $flow[] = `flow -divisions 2 2 4 -objectCentered 1 -localCompute 0 -localDivisions 2 2 2 $cPiece`;
+			}
+			
+			// Complete Circle
+			if ($cb_circle == 1){
+				if ($i == ($n-1)){
+					string $endCurves[] = `ls -dac -type "nurbsCurve" $allPieces[0]`;
+				}
+			}
+			
+			// Cleanup
+			string $t[] = `parent $cPiece $piecesNode`;
+			string $cPieces = $t[0];
+	   }
+
+		//CleanUp
+		parent $targetCurve $objUpCurve $curvesNode;
+		parent $curvesNode $cNode;
+		string $t[] = `parent $locNode $cNode`;
+		string $locNode = $t[0];
+		string $t[] = `parent $piecesNode $cNode`;
+		string $piecesNode = $t[0];
+		string $t[] = `parent $flowNode $cNode`;
+		string $flowNode = $t[0];
+		
+		//Store Data
+
+		addAttr -ln "piece" -dt "string" $cNode;
+		setAttr -e -channelBox true -type "string" ($cNode + ".piece") $piece;
+		addAttr -ln "targetCurve" -dt "string" $cNode;
+		setAttr -e -channelBox true -type "string" ($cNode + ".targetCurve") ($cNode + "|" + $curvesNode + "|" + $targetCurve);
+		addAttr -ln "offsetCurve" -dt "string" $cNode;
+		setAttr -e -channelBox true -type "string" ($cNode + ".offsetCurve") $objUpCurve;
+		addAttr -ln "locNode" -dt "string" $cNode;
+		setAttr -e -channelBox true -type "string" ($cNode + ".locNode") $locNode;
+		addAttr -ln "piecesNode" -dt "string" $cNode;
+		setAttr -e -channelBox true -type "string" ($cNode + ".piecesNode") $piecesNode;
+		addAttr -ln "flowNode" -dt "string" $cNode;
+		setAttr -e -channelBox true -type "string" ($cNode + ".flowNode") $flowNode;
+		
+		select $cNode;
+		print "Complete \n";
+		addAttr -ln "pillarType"  -dt "string"  $cNode;
+		setAttr -e -cb true -type "string" ($cNode + ".pillarType") "none";
+		
+		frameLayout -e -cl 1 fl_pillars;
+		frameLayout -e -cl 1 fl_select;
+	}
+}
+
+// Launch DAC Help Menu
+global proc dacHelpMenu(){
+
+	source generateChannelMenu.mel;
+	
+    if(`window -q -ex dacHelpMenu`){
+      deleteUI dacHelpMenu;
+    }
+
+    window  -s 0 -w 400 -h 500 -title "Help / About" dacHelpMenu;
+    columnLayout ColumnLayout;
+
+	scrollField
+		-w 400
+		-h 470
+		-wordWrap true
+		-editable false
+		-text ("This script will take a Group of objects and duplicate them along a specified curve. "
+			+ "If the group contains curves, these "
+			+ "can be lofted after creation using the 'Make Beams' command. "
+			+ "You can edit the shape, angle and scale of the track and "
+			+ "pillars dynamically after creation. You can also change the "
+			+ "pillar rate and number of duplicates at anytime by selecting "
+			+ "the control node and entering a new value."
+			+ "\n\n\n\n\n\n\n"
+			+ "Script written by Peter Chapman.\n"
+			+ "Email:  peter@chapmanstudios.co.uk"
+			+ "\n\n\n\n\n\n\n"
+			+ "You are welcome to use and distribute this script, however, "
+			+ "if you do so, send me a quick e-mail with your name and what "
+			+ "you used it for."
+			+ "\n\n"
+			+ "Also feel free to give me feedback / request changes. "
+			+ "\n\n"
+			+ "If you use the script for a commercial project, "
+			+ "please contribute via PayPal using the email address "
+			+ "above. ");
+	
+	button -w 400 -bgc 1 0.5 0 -l "CLOSE" -c "deleteUI dacHelpMenu;";
+	showWindow dacHelpMenu;
+	window -e -w 400 -h 500 dacHelpMenu;
+}
+
+// Main Menu:
+global proc dacMenu(){
+
+    source generateChannelMenu.mel;
+	
+     if(`window -q -ex dacMenu`){
+      deleteUI dacMenu;
+    }
+
+    window  -s 0 -w 250 -h 300 -title "DAC" dacMenu;
+    columnLayout cl_main;
+		button -w 250 -bgc 0.4 0.4 0.4 -l "Help / About" -ann "Help / About" -c "dacHelpMenu()";
+		frameLayout -w 250 -l "Duplicate Along Curve" -cll 0 fl_dac;
+			rowLayout -nc 3 -cw3 100 50 100;
+				text -l "No. Duplicates:";
+				floatField -w 50 -v 10 ff_dac;
+				button -w 100 -l "Auto" -ann "Select the Curve" -c "autoFill()";
+			setParent ..;
+			gridLayout -ch 15 -cw 125 -nc 2;
+				checkBox -l "Instance" -v 1 cb_instance;
+				checkBox -en 0 -l "Aim Constrain" -v 0 cb_aim;
+				checkBox -en 0 -l "Build Nurbs Beams" -v 0 cb_beams;
+				checkBox -en 0 -l "Complete Circle" -v 0 cb_circle;
+				checkBox -l "Flow" -v 0 cb_flow;
+			setParent ..;
+			button -w 250 -bgc 0 1 0 -l "Duplicate"
+				-ann "Select the Group you wish to duplicate and THEN the curve"
+				-c "dac(`floatField -q -v ff_dac`, `checkBox -q -v cb_instance`, `checkBox -q -v cb_beams`, `checkBox -q -v cb_circle`, `checkBox -q -v cb_aim`, `checkBox -q -v cb_flow`)";
+		setParent ..;
+		frameLayout -w 250 -l "Build Pillars" -cll 1 -cl 1 fl_pillars;
+			columnLayout;
+				rowLayout -nc 3 -cw3 100 50 100;
+					text -l "No. Tracks per Pillar:";
+					floatField -w 50 -v 5 ff_pillars;
+					text -l "";
+				setParent ..;
+				text -l "";
+				text -l "Select Pillar Style Below:";
+				gridLayout -w 250 -cw 125 -nc 2 gl_pillars;
+					button -w 125 -bgc 0 1 1 -l "Basic Cylinder" -c "buildPillars(`floatField -q -v ff_pillars`, \"cyclinder\")";
+					button -w 125 -bgc 0 1 1 -l "Basic Square" -c "buildPillars(`floatField -q -v ff_pillars`, \"square\")";
+					button -w 125 -bgc 0 1 1 -l "Overhang Square" -c "buildPillars(`floatField -q -v ff_pillars`, \"overhangSquare\")";
+					button -w 125 -bgc 0 1 1 -l "Overhang Cylinder" -c "buildPillars(`floatField -q -v ff_pillars`, \"overhangCylinder\")";
+				setParent ..;
+				button -w 250 -bgc 1 0.2 0.2 -l "Delete Pillars" -c "deletePillars()";
+			setParent ..;
+		setParent ..;
+		frameLayout -w 250 -l "Select" -cll 1 -cl 1 fl_select;
+			columnLayout cl_gridLoc;
+				gridLayout -w 250 -cw 125 -nc 2 gl_curves;
+				setParent ..;
+				gridLayout -w 250 -cw 125 -nc 2;
+					button -w 125 -bgc 1 1 0 -l "Control Curves" -c "getSel(\"cc\")";
+					button -w 125 -bgc 1 0.5 0 -l "Target Curves" -c "getSel(\"tc\")";
+				setParent ..;
+			setParent ..;
+		setParent ..;
+	setParent ..;
+	
+	showWindow dacMenu;
+	window -e -w 250 -h 400 dacMenu;
+}
+
+//Run Procedure
+dacMenu();

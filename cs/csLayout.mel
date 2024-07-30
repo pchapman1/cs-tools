@@ -1,0 +1,506 @@
+/*
+Layout v 1.01
+Script written by Peter Chapman.
+Email: Peter@chapmanstudios.co.uk
+
+You are welcome to use and distribute this script, however,
+if you do so, send me a quick e-mail with your name and what
+you used it for.
+
+Also feel free to give me feedback / request changes.
+
+If you end up using the script for a commercial project,
+please contribute via PayPal using the email address
+above!
+*/
+
+source "cs/csProgBar.mel";
+
+global proc reverseValues(string $sel[], string $attr){
+
+	for ($each in $sel){
+		setAttr ($each + $attr) (-1 * `getAttr ($each + $attr)`);
+	}
+}
+
+global proc swapValues(string $sel[], string $v){
+
+	if (size($sel) != 2) confirmDialog -t "Warning" -m "Not enough or too many objects selected" -b "Ok" -db "Ok";
+	else{
+		float $t = `getAttr ($sel[0] + $v)`;
+		setAttr ($sel[0] + $v) `getAttr ($sel[1] + $v)`;
+		setAttr ($sel[1] + $v) $t;
+	}
+}
+
+global proc copyValues(string $sel[], string $v){
+	string $copy[] = $sel;
+	if (size($sel) < 2) confirmDialog -t "Warning" -m "Not enough objects selected" -b "Ok" -db "Ok";
+	else{
+		stringArrayRemoveAtIndex ((size($sel)-1), $copy);
+		for ($each in $copy){
+			setAttr ($each + $v) `getAttr ($sel[size($sel)-1] + $v)`;
+		}
+	}
+}
+
+global proc snapToPivot(){
+
+	string $sel[] = `ls -sl`;
+	float $trA[] = `xform -q -ws -t $sel[(size($sel)-1)]`;
+	float $rpA[] = `xform -q -rp $sel[(size($sel)-1)]`;
+	float $rpB[];
+	stringArrayRemoveAtIndex ((size($sel)-1), $sel);
+	
+	for ($each in $sel){
+		$rpB = `xform -q -rp $each`;
+		xform -ws -t ($trA[0] + $rpA[0] - $rpB[0]) ($trA[1] + $rpA[1] - $rpB[1]) ($trA[2] + $rpA[2] - $rpB[2]) $each;
+	}
+}
+
+global proc randMove(float $scale){
+
+	string $sel[] = `ls -sl`;
+	for ($each in $sel){
+   		move -r (rand(($scale * -1),($scale * 1))) (rand(($scale * -1),($scale * 1))) (rand(($scale * -1),($scale * 1))) $each;
+	}
+}
+
+global proc randRot(float $scale){
+
+	string $sel[] = `ls -sl`;
+	for ($each in $sel){
+   		rotate -r (rand(($scale * -20),($scale * 20))) (rand(($scale * -20),($scale * 20))) (rand(($scale * -20),($scale * 20))) $each;
+	}
+}
+
+global proc manip(int $all, int $manip, string $v){
+
+	string $sel[] = `ls -sl`;
+	
+	if ($manip == 1){
+		if ($all == 1){
+			reverseValues($sel, ($v + "x"));
+			reverseValues($sel, ($v + "y"));
+			reverseValues($sel, ($v + "z"));
+		}
+		else if ($v == "ALL"){
+			for ($each in $sel){
+				string $attrList[] = `listAttr -v -k -u $each`;
+				for ($attr in $attrList) reverseValues($sel, ("." + $attr));
+			}
+		}
+		else reverseValues($sel, $v);
+	}
+	if ($manip == 2){
+		if ($all == 1){
+			swapValues($sel, ($v + "x"));
+			swapValues($sel, ($v + "y"));
+			swapValues($sel, ($v + "z"));
+		}
+		else if ($v == "ALL"){
+			for ($each in $sel){
+				string $attrList[] = `listAttr -v -k -u $each`;
+				for ($attr in $attrList) swapValues($sel, ("." + $attr));
+			}
+		}
+		else swapValues($sel, $v);
+	}
+	if ($manip == 3){
+		if ($all == 1){
+			copyValues($sel, ($v + "x"));
+			copyValues($sel, ($v + "y"));
+			copyValues($sel, ($v + "z"));
+		}
+		else if ($v == "ALL"){
+			for ($each in $sel){
+				string $attrList[] = `listAttr -v -k -u $each`;
+				for ($attr in $attrList) copyValues($sel, ("." + $attr));
+			}
+		}
+		else copyValues($sel, $v);
+	}
+}
+
+global proc string getRef(int $t){
+
+	string $sel[] = `ls -sl`;
+	string $ref;
+	string $buffer[];
+	tokenize $sel[0] ":" $buffer;
+	
+	for ($i = 0; $i < (size($buffer)-1); $i++){
+		$ref = ($ref + $buffer[$i] + ":");
+	}
+
+	if ($t == 1){
+		text -e -l $ref t_tRef;
+		print ("Target reference set to: <" + $ref + ">\n");
+	}
+	
+	else print ("Reference set to: <" + $ref + ">\n");
+	return $ref;
+}
+
+global proc disconnectFromRef(string $ref){
+
+	source generateChannelMenu.mel;
+	
+	if ($ref == ""){
+		confirmDialog -t "Warning" -m "No reference loaded" -b "Ok" -db "Ok";;
+	}
+	
+	else{
+		string $sel[] = `ls -sl`;
+		string $attrList[];
+		
+		for ($each in $sel){
+			string $buffer[];
+			tokenize $each ":" $buffer;
+			string $obj = $buffer[(size($buffer) -1)];
+			$attrList = `listAttr -v -k -u ($ref + $obj)`;
+			for ($attr in $attrList){
+				if (objExists ($ref + $obj + "." + $attr)) CBdeleteConnection ($ref + $obj + "." + $attr);
+			}
+		}
+	}
+}
+
+//Pose2Shelf
+global proc string saveSelectedNodeAttrsToShelf(string $label){
+
+	string $selected[] = `ls -sl`;
+	
+	if ( !`size($selected)` ){
+		warning "Nothing selected. No shelf button created.";
+		return "Nothing selected. No shelf button created.";	
+	}
+	
+	string $safeShelfCommand;
+	
+	for ($node in $selected){
+		string $keyableAttrs[] = `listAttr -r -w -k -u -v -m -s $node`;
+		if ( !`size($keyableAttrs)`){
+			continue;	
+		} 
+		for ($attr in $keyableAttrs)
+		{
+			string $value = string ( `getAttr ($node+"."+$attr)` );
+			$safeShelfCommand = ("catch (`setAttr \""+$node +"."+$attr+"\" "+$value+"`);\n")+$safeShelfCommand;
+		}
+	}
+
+global string $gShelfTopLevel;
+	
+	if (`tabLayout -exists $gShelfTopLevel`){
+		print "\n\n\n";	
+		print "// Set Attribute commands put into shelf: \n\n";
+		print $safeShelfCommand;
+		print "\n";
+		
+		if ($label == ""){
+			$label = "pose.";
+		}
+		
+		shelfButton
+			-parent ($gShelfTopLevel + "|" + `tabLayout -q -st $gShelfTopLevel`)
+			-enableCommandRepeat 1
+			-enable 1
+			-width 34
+			-height 34
+			-manage 1
+			-visible 1
+			-annotation $label
+			-label $label 
+			-iol $label
+			-image1 "menuIconCharacters.xpm" 
+			-style "iconOnly" 
+			-command $safeShelfCommand;
+	}
+	
+	else{
+		error "Pete says: SHOW YOUR SHELF!";
+	}
+	
+	return $safeShelfCommand;
+}
+
+global proc string saveNodeSelectionToShelf(string $label){
+
+	string $selected[] = `ls -sl`;
+	
+	if ( !`size($selected)` ){
+		warning "Nothing selected. No shelf button created.";
+		return "Nothing selected. No shelf button created.";	
+	}
+	
+	string $safeShelfCommand;
+	
+	for ($node in $selected){
+		$safeShelfCommand = ("catch (`select -add \""+$node+"\"`);\n")+$safeShelfCommand;
+	}
+	
+	$safeShelfCommand = "select -cl;\n"+$safeShelfCommand;
+	global string $gShelfTopLevel;
+	
+	if (`tabLayout -exists $gShelfTopLevel`){
+	
+		print "\n\n\n";	
+		print "// Selection commands put into shelf: \n\n";
+		print $safeShelfCommand;
+		print "\n";
+		
+		if ($label == ""){
+			$label = "select.";
+		}
+		
+		shelfButton
+			-parent ($gShelfTopLevel + "|" + `tabLayout -q -st $gShelfTopLevel`)
+			-enableCommandRepeat 1
+			-enable 1
+			-width 34
+			-height 34
+			-manage 1
+			-visible 1
+			-annotation $label
+			-label $label 
+			-iol $label
+			-image1 "aselect.xpm" 
+			-style "iconOnly" 
+			-command $safeShelfCommand;
+	}
+	
+	else{
+		error "Pete Says: SHOW YOUR SHELF!";
+	}
+	
+	return $safeShelfCommand;
+}
+
+global proc connectToRef(int $doRef, string $tRef, string $v){
+
+	string $sel[] = `ls -sl`;
+	string $ref = `getRef(0)`;
+	int $i = 0;
+	for ($each in $sel){
+		string $buffer[];
+		tokenize $each ":" $buffer;
+		string $obj = $buffer[(size($buffer)-1)];
+		
+		++$i;
+		int $interrupt = progWindow($i, (size($sel)));
+		if ($interrupt == 1) break;
+		
+		// Copy
+		if ($doRef == 1){
+			if ($v == "ALL"){
+				$attrList = `listAttr -v -k -u ($ref + $obj)`;
+				for ($attr in $attrList){
+					if (objExists ($tRef + $obj + "." + $attr)) setAttr ($tRef + $obj + "." + $attr) `getAttr ($ref + $obj + "." + $attr)`;
+				}
+			}
+			else{
+				if (objExists ($tRef + $obj + $v + "x")) setAttr ($tRef + $obj + $v + "x") `getAttr ($ref + $obj + $v + "x")`;
+				if (objExists ($tRef + $obj + $v + "y")) setAttr ($tRef + $obj + $v + "y") `getAttr ($ref + $obj + $v + "y")`;
+				if (objExists ($tRef + $obj + $v + "z")) setAttr ($tRef + $obj + $v + "z") `getAttr ($ref + $obj + $v + "z")`;
+			}
+		}
+		// Connect
+		if ($doRef == 2){
+			if ($v == "ALL"){
+				$attrList = `listAttr -v -k -u ($ref + $obj)`;
+				for ($attr in $attrList){
+					if (objExists ($tRef + $obj + "." + $attr)) connectAttr ($ref + $obj + "." + $attr) ($tRef + $obj + "." + $attr);
+				}
+			}
+			else{
+				if (objExists ($tRef + $obj + $v + "x")) connectAttr ($ref + $obj + $v + "x") ($tRef + $obj + $v + "x");
+				if (objExists ($tRef + $obj + $v + "y")) connectAttr ($ref + $obj + $v + "y") ($tRef + $obj + $v + "y");
+				if (objExists ($tRef + $obj + $v + "z")) connectAttr ($ref + $obj + $v + "z") ($tRef + $obj + $v + "z");
+			}
+		}
+		// Constrain
+		if ($doRef == 3){
+			if ($v == "ALL"){
+				if (objExists ($tRef + $obj)) parentConstraint -mo -weight 1 ($ref + $obj) ($tRef + $obj);
+				print "Note: Scale has not been constrained. \n";
+			}
+			else{
+				print "only all is available for constraints";
+			}
+		}
+		// Copy Keys
+		if ($doRef == 4){
+			if ($v == "ALL"){
+				if (objExists ($tRef + $obj)){
+					for ($n = `playbackOptions -q -min`; $n < `playbackOptions -q -max`; $n++){
+						if (`keyframe -t $n -q -kc ($ref + $obj)` != 0){
+							currentTime $n;
+							select -r ($ref + $obj);
+							timeSliderCopyKey;
+							select -r ($tRef + $obj);
+							timeSliderPasteKey false;
+							select -cl;
+						}
+					}
+				}
+				select -r $sel;
+			}
+			else{
+				print "only all is available for copying key frames";
+			}
+		}
+	}
+}
+
+global proc setLimits(string $axis, int $func, float $min, float $max){
+	string $sel[] = `ls -sl`;
+
+	int $enMin = 1;
+	int $enMax = 1;
+	if ($min == 0) $enMin = 0;
+	if ($max == 0) $enMax = 0;
+	
+	for ($each in $sel){
+		if ($func == 1){
+			if ($axis == "x") transformLimits -tx $min $max -etx $enMin $enMax $each;
+			if ($axis == "y") transformLimits -ty $min $max -ety $enMin $enMax $each;
+			if ($axis == "z") transformLimits -tz $min $max -etz $enMin $enMax $each;
+		}
+		if ($func == 2){
+			if ($axis == "x") transformLimits -rx $min $max -erx $enMin $enMax $each;
+			if ($axis == "y") transformLimits -ry $min $max -ery $enMin $enMax $each;
+			if ($axis == "z") transformLimits -rz $min $max -erz $enMin $enMax $each;
+		}
+		if ($func == 3){
+			if ($axis == "x") transformLimits -sx $min $max -esx $enMin $enMax $each;
+			if ($axis == "y") transformLimits -sy $min $max -esy $enMin $enMax $each;
+			if ($axis == "z") transformLimits -sz $min $max -esz $enMin $enMax $each;
+		}
+	}
+}
+
+global proc csLayoutMenu(){
+
+	if ( `window -exists csLayout_menu` ) {
+	 deleteUI csLayout_menu;
+	}
+	
+	window -s 0 -t "Layout" csLayout_menu;
+	columnLayout;
+		frameLayout -w 300 -l "Object Location";
+			columnLayout;
+				button -w 300 -bgc 0 1 1 -l "Snap To Pivot" -c "snapToPivot()";
+			setParent ..;
+			rowLayout -nc 4 -cw4 98 48 73 73;
+				text -l "Rnd Scale Factor:";
+				floatField -w 48 -v 1 ff_rand;
+				button -w 73 -bgc 1 1 0 -l "Move Rand" -c "randMove(`floatField -q -v ff_rand`)";
+				button -w 73 -bgc 1 0.5 0 -l "Rotate Rand" -c "randRot(`floatField -q -v ff_rand`)";
+			setParent ..;
+			columnLayout;
+				text -l "";
+				text -l "Manipulation: <for swap 2 obj must be selected>";
+				radioButtonGrp
+					-l ""
+					-la3 "Reverse" "Swap" "Copy"
+					-nrb 3 -sl 0 -cw 1 20 -cw 2 70 -cw 3 70 -cw 4 70
+					rbGrp_manip;
+				rowLayout -nc 5 -cw5 100 48 31 31 31;
+					text -l "Translate:";
+					button -w 48 -bgc 1 0.5 0 -l "All" -c "manip(\"1\", `radioButtonGrp -q -sl rbGrp_manip`, \".t\")";
+					button -w 30 -bgc 1 0 0 -l "X" -c "manip(\"0\", `radioButtonGrp -q -sl rbGrp_manip`, \".tx\")";
+					button -w 30 -bgc 0 1 0 -l "Y" -c "manip(\"0\", `radioButtonGrp -q -sl rbGrp_manip`, \".ty\")";
+					button -w 30 -bgc 0 0 1 -l "Z" -c "manip(\"0\", `radioButtonGrp -q -sl rbGrp_manip`, \".tz\")";
+				setParent ..;
+				rowLayout -nc 5 -cw5 100 48 31 31 31;
+					text -l "Rotate:";
+					button -w 48 -bgc 1 0.5 0 -l "All" -c "manip(\"1\", `radioButtonGrp -q -sl rbGrp_manip`, \".r\")";
+					button -w 30 -bgc 1 0 0 -l "X" -c "manip(\"0\", `radioButtonGrp -q -sl rbGrp_manip`, \".rx\")";
+					button -w 30 -bgc 0 1 0 -l "Y" -c "manip(\"0\", `radioButtonGrp -q -sl rbGrp_manip`, \".ry\")";
+					button -w 30 -bgc 0 0 1 -l "Z" -c "manip(\"0\", `radioButtonGrp -q -sl rbGrp_manip`, \".rz\")";
+				setParent ..;
+				rowLayout -nc 5 -cw5 100 48 31 31 31;
+					text -l "Scale:";
+					button -w 48 -bgc 1 0.5 0 -l "All" -c "manip(\"1\", `radioButtonGrp -q -sl rbGrp_manip`, \".s\")";
+					button -w 30 -bgc 1 0 0 -l "X" -c "manip(\"0\", `radioButtonGrp -q -sl rbGrp_manip`, \".sx\")";
+					button -w 30 -bgc 0 1 0 -l "Y" -c "manip(\"0\", `radioButtonGrp -q -sl rbGrp_manip`, \".sy\")";
+					button -w 30 -bgc 0 0 1 -l "Z" -c "manip(\"0\", `radioButtonGrp -q -sl rbGrp_manip`, \".sz\")";
+				setParent ..;
+				rowLayout -nc 2 -cw2 100 200;
+					text "";
+					button -w 146 -bgc 1 1 0 -l "All Keyable" -c "manip(\"0\", `radioButtonGrp -q -sl rbGrp_manip`, \"ALL\")";
+				setParent ..;
+			setParent ..;
+		setParent ..;
+		frameLayout -w 300 -l "Set Limits";
+			columnLayout;
+				radioButtonGrp
+					-l ""
+					-la3 "Transform" "Rotate" "Scale"
+					-nrb 3 -sl 0 -cw 1 20 -cw 2 70 -cw 3 70 -cw 4 70
+					rbGrp_limits;
+				rowLayout -nc 3 -cw3 50 50 200;
+					text -l "Min:";
+					text -l "Max:";
+					text -l "Axis:";
+				setParent ..;
+				rowLayout -nc 3 -cw3 50 50 200;
+					floatField -w 45 ff_minLimit;
+					floatField -w 45 ff_maxLimit;
+					rowLayout -nc 3 -cw3 32 32 32;
+						button -w 30 -bgc 1 0 0 -l "X" -c "setLimits(\"x\", `radioButtonGrp -q -sl rbGrp_limits`, `floatField -q -v ff_minLimit`, `floatField -q -v ff_maxLimit`)";
+						button -w 30 -bgc 0 1 0 -l "Y" -c "setLimits(\"y\", `radioButtonGrp -q -sl rbGrp_limits`, `floatField -q -v ff_minLimit`, `floatField -q -v ff_maxLimit`)";
+						button -w 30 -bgc 0 0 1 -l "Z" -c "setLimits(\"z\", `radioButtonGrp -q -sl rbGrp_limits`, `floatField -q -v ff_minLimit`, `floatField -q -v ff_maxLimit`)";
+					setParent ..;
+				setParent ..;
+			setParent ..;
+		setParent ..;
+		frameLayout -w 300 -l "Connect to Reference";
+			rowLayout -nc 3 -cw3 58 178 48;
+				text -l "Target Ref:";
+				text -l "" t_tRef;
+				button -w 58 -bgc 1 1 0 -l "Get Ref" -c "$tRef = `getRef(1)`";
+			setParent ..;
+			radioButtonGrp
+				-l ""
+				-la4 "Copy" "Connect" "Constraint" "Copy Keys"
+				-nrb 4 -sl 0 -cw 1 20 -cw 2 50 -cw 3 60 -cw 4 70 -cw 5 50
+				rb_doRef;
+			rowLayout -nc 4 -cw4 73 73 73 73;
+				button -w 73 -bgc 1 0.5 0 -l "Translate" -c "connectToRef(`radioButtonGrp -q -sl rb_doRef`, $tRef, \".t\")";
+				button -w 73 -bgc 0 1 0 -l "Rotate" -c "connectToRef(`radioButtonGrp -q -sl rb_doRef`, $tRef, \".r\")";
+				button -w 73 -bgc 0 1 1 -l "Scale" -c "connectToRef(`radioButtonGrp -q -sl rb_doRef`, $tRef, \".s\")";
+				button -w 73 -bgc 1 1 0 -l "All" -c "connectToRef(`radioButtonGrp -q -sl rb_doRef`, $tRef, \"ALL\")";
+			setParent ..;
+		setParent ..;
+		frameLayout -w 300 -l "Components";
+			rowLayout -nc 2 -cw2 150 150;
+				text -l "Reverse Values:";
+				rowLayout -nc 3 -cw3 32 32 32;
+					button -w 30 -bgc 1 0 0 -l "X" -c "manip(0, 1, \".xValue\")";
+					button -w 30 -bgc 0 1 0 -l "Y" -c "manip(0, 1, \".yValue\")";
+					button -w 30 -bgc 0 0 1 -l "Z" -c "manip(0, 1, \".zValue\")";
+				setParent ..;
+			setParent ..;
+			text -l "*currently unable to batch-reverse components*";
+		setParent ..;
+		frameLayout -w 300 -l "Pose To Shelf";
+			columnLayout;
+				textField -w 300 tx_poseToShelf;
+				rowLayout -nc 2 -cw2 150 150;
+					button -bgc 1 1 0 -h 30 -w 148 -ann "Save Selected Node's \"setAttr\" Commands to a Shelf Button." -label "Pose2Shelf" -c ("saveSelectedNodeAttrsToShelf( `textField -q -tx tx_poseToShelf` );");
+					button -bgc 1 0.5 0 -h 30 -w 148 -ann "Save Current Selection's Selection Commands as a Shelf Button." -label "Selection2Shelf" -c ("saveNodeSelectionToShelf( `textField -q -tx tx_poseToShelf` );");
+				setParent ..;
+			setParent ..;
+		setParent ..;
+	setParent ..;
+
+	window -e -w 302 -h 800 csLayout_menu;
+	showWindow csLayout_menu;
+
+	string $ref = getRef(0);
+	string $tRef = getRef(1);
+}
+
+csLayoutMenu();

@@ -1,0 +1,113 @@
+/*
+Reference Manager v 1.01
+Script written by Peter Chapman.
+Email: peter@chapmanstudios.co.uk
+
+You are welcome to use and distribute this script, however,
+if you do so, send me a quick e-mail with your name and what
+you used it for.
+
+Also feel free to give me feedback / request changes.
+
+If you end up using the script for a commercial project,
+please contribute via PayPal using the email address
+above!
+*/
+
+global proc populateList(int $id){
+	string $mayaDir = `workspace -q -rootDirectory`;
+	string $assets[];
+	
+	if ($id == 0){
+		setParent cl_recommended;
+		$assets = `getFileList -fld ($mayaDir + "assets/") -fs "*.ma"`;
+	}
+	else if ($id == 1){
+		setParent cl_imported;
+		$assets = `ls -rf`;
+	}
+	if (`columnLayout -q -exists ("cl_data" + $id)`){
+		deleteUI ("cl_data" + $id);
+	}
+	columnLayout ("cl_data" + $id);
+		for ($each in $assets){
+			string $buffer[]; string $onc; string $ofc; int $v;
+			tokenize $each "." $buffer;
+			if ($id){
+				$onc = ("file -loadReference " + $each);
+				$ofc = ("file -unloadReference " + $each);
+			}
+			else{
+				$onc = ("file -r \"assets/" + $each + "\"; checkBox -e -v 0 cb_av_" + $buffer[0] + "; populateList(1);");
+				$ofc = "";
+			}
+			if (`objExists $buffer[0]`) $v = `referenceQuery -il $buffer[0]`;
+			string $cb = `checkBox
+				-w 300
+				-l $buffer[0]
+				-onc $onc
+				-ofc $ofc
+				-v $v
+				("cb_av_" + $buffer[0])`;
+		}
+}
+
+global proc browseForAsset(){
+	string $mayaDir = `workspace -q -rootDirectory`;
+	string $file[] = `fileDialog2 -fm 4 -ff "Maya Files (*.ma *.mb)" -dir ($mayaDir + "assets/")`;
+	file -r $file;
+	populateList(1);
+}
+
+global proc importRef(){
+	string $mayaDir = `workspace -q -rootDirectory`;
+	string $assets[] = `getFileList -fld ($mayaDir + "assets/") -fs "*.ma"`;
+	for ($each in $assets){
+		string $buffer[];
+		tokenize $each "." $buffer;
+		if (`objExists ("cb_av_" + $buffer[0])`){
+			print "a";
+			if (`checkBox -q -v ("cb_av_" + $buffer[0])` == 1){
+				print "b";
+				file -loadReference $each;
+				checkBox -v 0 ("cb_av_" + $buffer[0]);
+			}
+		}
+	}
+}
+
+global proc csRefMan(){
+
+	if ( `window -exists csRefMan` ) {
+		 deleteUI csRefMan;
+	}
+		
+	window  -s 0 -t "Reference Manager" csRefMan;
+		
+	columnLayout;
+		frameLayout -w 300 -cll 1 -cl 1 -l "Import Project Assets" fl_recommended;
+			columnLayout cl_recommended;
+			setParent ..;
+			rowLayout -nc 3 -cw3 98 98 98;
+				text -l "";
+				button -w 97 -l "Browse" -ann "Browse for an external asset" -c "browseForAsset()";
+				button -w 97 -l "Refresh" -ann "Refresh available asset list" -c "populateList(0)";
+			setParent ..;
+		setParent ..;
+		frameLayout -w 300 -l "Imported Assets" fl_imported;
+			columnLayout cl_imported;
+			setParent ..;
+			rowLayout -nc 3 -cw3 98 98 98;
+				text -l "";
+				text -l "";
+				button -w 97 -l "Refresh" -ann "Refresh imported asset list" -c "populateList(1)";
+			setParent ..;
+		setParent ..;
+	setParent ..;
+		 
+	showWindow csRefMan;
+}
+
+csRefMan();
+populateList(0);
+populateList(1);

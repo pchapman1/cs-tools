@@ -1,0 +1,115 @@
+global proc keyJiggle(){
+	string $sel[] = `ls -sl`;
+
+	float $minTime = `playbackOptions -q -minTime`;
+	float $maxTime = `playbackOptions -q -maxTime`;
+	
+	currentTime $minTime;
+	setAttr ($sel[0] + ".jiggle") 0;
+	setKeyframe ($sel[0] + ".jiggle");
+	
+	currentTime ($minTime + 4);
+	setAttr ($sel[0] + ".jiggle") 1;
+	setKeyframe ($sel[0] + ".jiggle");
+	
+	currentTime ($maxTime - 4);
+	setKeyframe ($sel[0] + ".jiggle");
+	
+	currentTime ($maxTime);
+	setAttr ($sel[0] + ".jiggle") 0;
+	setKeyframe ($sel[0] + ".jiggle");
+	
+	currentTime 0;
+}
+
+global proc keyJiggleMed(){
+	string $sel[] = `ls -sl`;
+
+	float $minTime = `playbackOptions -q -minTime`;
+	float $maxTime = `playbackOptions -q -maxTime`;
+	
+	currentTime $minTime;
+	setAttr ($sel[0] + ".jiggle") 0;
+	setKeyframe ($sel[0] + ".jiggle");
+	
+	currentTime ($minTime + 3);
+	setAttr ($sel[0] + ".jiggle") 1;
+	setKeyframe ($sel[0] + ".jiggle");
+	
+	currentTime ($maxTime - 3);
+	setKeyframe ($sel[0] + ".jiggle");
+	
+	currentTime ($maxTime);
+	setAttr ($sel[0] + ".jiggle") 0;
+	setKeyframe ($sel[0] + ".jiggle");
+	
+	currentTime 0;
+}
+
+global proc keyJiggleFast(){
+	string $sel[] = `ls -sl`;
+
+	float $minTime = `playbackOptions -q -minTime`;
+	float $maxTime = `playbackOptions -q -maxTime`;
+	
+	currentTime $minTime;
+	setAttr ($sel[0] + ".jiggle") 0;
+	setKeyframe ($sel[0] + ".jiggle");
+	
+	currentTime ($minTime + 2);
+	setAttr ($sel[0] + ".jiggle") 1;
+	setKeyframe ($sel[0] + ".jiggle");
+	
+	currentTime ($maxTime - 2);
+	setKeyframe ($sel[0] + ".jiggle");
+	
+	currentTime ($maxTime);
+	setAttr ($sel[0] + ".jiggle") 0;
+	setKeyframe ($sel[0] + ".jiggle");
+	
+	currentTime 0;
+}
+
+
+//Menu
+global proc keyJiggleMenu(){
+	source generateChannelMenu.mel;
+  
+	if(`window -q -ex keyJiggle_menu`){
+  		deleteUI keyJiggle_menu;
+	}
+	
+    window
+		-rtf 1
+		-mnb 0
+		-mxb 0
+		-s 0
+		-title "Jiggle AutoKey"
+		keyJiggle_menu;
+	
+    columnLayout ColumnLayout;
+	
+	button
+		-bgc 0 1 1
+		-w 190
+		-l "Jiggle Slow"
+		-ann "Select Dynamics Control and GO"
+		-c "keyJiggle()";
+	button
+		-bgc 0 0.9 1
+		-w 190
+		-l "Jiggle Medium"
+		-ann "Select Dynamics Control and GO"
+		-c "keyJiggleMed()";
+	button
+		-bgc 0 0.8 1
+		-w 190
+		-l "Jiggle Fast"
+		-ann "Select Dynamics Control and GO"
+		-c "keyJiggleFast()";
+		
+	showWindow keyJiggle_menu;
+	window -e -w 197 -h 135 keyJiggle_menu;
+}
+
+keyJiggleMenu();

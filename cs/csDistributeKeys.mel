@@ -1,0 +1,82 @@
+//  Key Distributor v 1.00
+//	Script written by Peter Chapman.
+//	Email: peter@chapmanstudios.co.uk
+//
+//	You are welcome to use and distribute this script, however,
+//	if you do so, send me a quick e-mail with your name and what
+//	you used it for.
+//
+//	Also feel free to give me feedback / request changes.
+//
+//	If you end up using the script for a commercial project,
+//	feel free to contribute via PayPal using the email address
+//	above!
+
+global proc distributeKeys(){
+
+	// 
+
+}
+
+//Menu
+global proc keyDistributorMenu(){
+
+	source generateChannelMenu.mel;
+	
+	if(`window -q -ex keyDistributorMenu`){
+  		deleteUI keyDistributerMenu;
+	}
+    window
+		-rtf 1
+		-mnb 0
+		-mxb 0
+		-s 0
+		-title "Key Distributor"
+		keyDistributorMenu;
+	
+    columnLayout ColumnLayout;
+		rowLayout -nc 3 -cw3 75 120 100;
+			text -l "Target Ref:";
+			text -l "" tTargetRef;
+			button
+				-bgc 1 1 0
+				-w 100
+				-l "Target Ref"
+				-ann "Select any object from the referenced asset"
+				-c "$ref = getRef()";
+		setParent ..;
+		button
+			-bgc 0 1 0
+			-w 300
+			-l "Connect To Reference"
+			-ann "Select All controls you wish to connect to."
+			-c "connectToRef($ref)";
+		//rowLayout -nc 2 -cw2 150 150;
+		//	button	-bgc 1 1 0 -w 150 -l "Connect Rotate" -c "connectToRef($ref)";
+		//	button	-bgc 0 1 1 -w 147 -l "Connect Translate" -c "connectToRef($ref)";
+		//setParent ..;
+		button
+			-bgc 0 1 0
+			-w 300
+			-l "Constrain To Reference"
+			-ann "Select All controls you wish to connect to."
+			-c "constrainToRef($ref)";
+		rowLayout -nc 2 -cw2 150 150;
+			button -bgc 1 1 0 -w 150 -l "Constrain Rotate" -c "constrainRToRef($ref)";
+			button -bgc 0 1 1 -w 147 -l "Constrain Translate" -c "constrainTToRef($ref)";
+		setParent ..;
+		button -bgc 1 1 1 -w 300 -l "Copy KeyFrames" -c "copyKeys($ref)";
+		button
+			-bgc 1 0.3 0.3
+			-w 300
+			-l "Disconnect From Reference"
+			-ann "Select All controls you wish to connect to."
+			-c "disconnectFromRef($ref)";
+	
+	showWindow connectToRef_menu;
+	window -e -w 300 -h 135 connectToRef_menu;
+	
+	$ref = getRef();
+}
+
+keyDistributorMenu();

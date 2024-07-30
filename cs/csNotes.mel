@@ -1,0 +1,66 @@
+/*
+Notes v 1.01
+Script written by Peter Chapman.
+Email: Peter@chapmanstudios.co.uk
+
+You are welcome to use and distribute this script, however,
+if you do so, send me a quick e-mail with your name and what
+you used it for.
+
+Also feel free to give me feedback / request changes.
+
+If you end up using the script for a commercial project,
+please contribute via PayPal using the email address
+above!
+*/
+
+global proc saveNote(string $note, string $user, string $sel[], int $focus){
+	string $selObj = "";
+	if ($focus == 1){
+		for ($each in $sel) $selObj = $selObj + $each;
+	}
+	string $command = ("string $return = `confirmDialog -t \"Scene Notes\" -b \"OK\" -b \"Edit\" -db \"OK\" -m (\"-" + $note + "-\" + \" " + $user + "\")`;" + "\n if ($return == \"Edit\") if (`exists \"cs/csNotes.mel\"`) source \"cs/csNotes.mel\";"+ "\n select -r " + $selObj + ";");
+	print $command;
+	if (`objExists "sceneNotes"`) delete sceneNotes;
+	scriptNode -n "sceneNotes" -bs $command -st 1;
+}
+
+global proc prevNote(string $note, string $user){	
+	string $return = `confirmDialog -t "Scene Notes" -b "OK" -b "Edit" -db "OK" -m ("-" + $note + "- " + $user)`;
+}
+
+global proc csNotesMenu(){
+	
+	if ( `window -exists csNotesMenu` ) {
+	 deleteUI csNotesMenu;
+	}
+	
+	window -s 0 -t "Scene Notes" csNotesMenu;
+	
+	columnLayout;
+		frameLayout -w 300 -l "Create/Edit Note on opening of a scene";
+			columnLayout;
+				scrollField -w 300 -h 200 sf_text;
+				rowLayout -nc 3 -cw3 100 100 100;
+					button -w 100 -bgc 1 1 0 -l "Preview" -c "prevNote(`scrollField -q -tx sf_text`, `getenv userName`)";
+					button -w 100 -bgc 0 1 1 -l "Save" -c "saveNote(`scrollField -q -tx sf_text`, `getenv userName`, `ls -sl`, `checkBox -q -v cb_sel`)";
+					button -w 100 -bgc 1 0 0 -l "Delete" -c " if (`objExists \"sceneNotes\"`) delete sceneNotes";
+				setParent ..;
+			setParent ..;
+		setParent ..;
+		checkBox -l "Also set focus to current selection" -v 1 cb_sel;
+	setParent ..;
+	
+	window -e -w 302 -h 260 csNotesMenu;
+	 
+	 if (`objExists "sceneNotes"`){
+		string $command = `scriptNode -q -bs sceneNotes`;
+		string $a[];
+		tokenize $command "-" $a;
+		scrollField -e -tx $a[6] sf_text;
+	 }
+	 
+	showWindow csNotesMenu;
+}
+
+csNotesMenu();
